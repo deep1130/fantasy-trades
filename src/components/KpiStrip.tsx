@@ -139,7 +139,7 @@ export function KpiStrip({
         </strong>
         <span className="summary-note">
           {superlatives.biggestFleece
-            ? `${superlatives.biggestFleece.season} Wk ${superlatives.biggestFleece.week} · Δ ${superlatives.biggestFleece.longTermMargin.toLocaleString()} val / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts · View trade →`
+            ? `${superlatives.biggestFleece.season} ${superlatives.biggestFleece.isOffseason ? 'Offseason' : `Wk ${superlatives.biggestFleece.week}`} · Δ ${superlatives.biggestFleece.longTermMargin.toLocaleString()} val / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts · View trade →`
             : 'Most lopsided deal in league history'}
         </span>
       </div>

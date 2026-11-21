@@ -87,8 +87,13 @@ export async function fetchUserLeagues(
     isSuperflex: detectIsSuperflex(lg),
   }))
 
-  // Sort dynasty leagues first, then active leagues
+  // Sort active (in_season / complete) leagues first, then dynasty, then name
+  const statusRank = (status: string) =>
+    status === 'in_season' ? 0 : status === 'complete' ? 1 : status === 'drafting' ? 2 : 3
+
   leagues.sort((a, b) => {
+    const sDiff = statusRank(a.status) - statusRank(b.status)
+    if (sDiff !== 0) return sDiff
     if (a.isDynasty !== b.isDynasty) return a.isDynasty ? -1 : 1
     return a.name.localeCompare(b.name)
   })

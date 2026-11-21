@@ -25,14 +25,31 @@ export function SuperlativesView({
     .sort((a, b) => b.totalTradeVolume - a.totalTradeVolume)
     .slice(0, 5)
 
-  const resolvedPickHits = trades
-    .flatMap((t) =>
-      t.sides.flatMap((s) =>
-        s.received
-          .filter((a) => a.kind === 'pick' && a.resolvedFromPick)
-          .map((asset) => ({ trade: t, side: s, asset })),
-      ),
-    )
+  // Deduplicate resolved draft picks so a pick traded multiple times only appears once,
+  // preferring the trade where the recipient actually kept the pick and drafted the player.
+  const pickHitByKey = new Map<
+    string,
+    { trade: AnalyzedTrade; side: AnalyzedTrade['sides'][number]; asset: AnalyzedTrade['sides'][number]['received'][number]; isDrafter: boolean }
+  >()
+  for (const t of trades) {
+    for (const s of t.sides) {
+      for (const asset of s.received) {
+        if (asset.kind !== 'pick' || !asset.resolvedFromPick) continue
+        const key = asset.pickKey || asset.id
+        const isDrafter = asset.resolvedDraftedByRosterId === s.rosterId
+        const existing = pickHitByKey.get(key)
+        if (
+          !existing ||
+          (isDrafter && !existing.isDrafter) ||
+          (isDrafter === existing.isDrafter && t.created > existing.trade.created)
+        ) {
+          pickHitByKey.set(key, { trade: t, side: s, asset, isDrafter })
+        }
+      }
+    }
+  }
+
+  const resolvedPickHits = Array.from(pickHitByKey.values())
     .sort((a, b) => b.asset.dynastyValue - a.asset.dynastyValue)
     .slice(0, 5)
 
@@ -65,7 +82,7 @@ export function SuperlativesView({
                 >
                   <div className="robbery-left">
                     <span className="robbery-week">
-                      {t.season} · WEEK {t.week}
+                      {t.season} · {t.isOffseason ? 'OFFSEASON' : `WEEK ${t.week}`}
                     </span>
                     <strong>{winner.teamName} fleeced {loser?.teamName ?? 'rival'}</strong>
                     <span className="robbery-detail">

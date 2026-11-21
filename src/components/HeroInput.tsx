@@ -103,15 +103,17 @@ export function HeroInput({
             </span>
           </span>
 
-          <button
-            type="button"
-            className={`history-toggle ${includeHistory ? 'active' : ''}`}
-            onClick={onToggleHistory}
-            title="Trace previous_league_id across prior dynasty seasons"
-          >
-            <History size={11} />
-            <span>{includeHistory ? 'Multi-Year: ON' : 'Single Season'}</span>
-          </button>
+          {isDynasty && (
+            <button
+              type="button"
+              className={`history-toggle ${includeHistory ? 'active' : ''}`}
+              onClick={onToggleHistory}
+              title="Trace previous_league_id across prior dynasty seasons"
+            >
+              <History size={11} />
+              <span>{includeHistory ? 'Multi-Year: ON' : 'Single Season'}</span>
+            </button>
+          )}
         </div>
 
         {userLeagues.length > 0 && (
@@ -124,11 +126,11 @@ export function HeroInput({
                 className={`quick-league-chip ${lg.league_id === activeLeagueId ? 'active' : ''}`}
                 onClick={() => onSelectLeague(lg.league_id)}
                 disabled={busy}
-                title={`${lg.name} (${lg.season})`}
+                title={`${lg.name} (${lg.season} · ${lg.status})`}
               >
                 <span>{lg.name}</span>
                 <span className="dynasty-badge">
-                  {lg.isDynasty ? 'DYN' : 'RED'}
+                  {lg.status === 'pre_draft' ? 'PRE' : lg.isDynasty ? 'DYN' : 'RED'}
                 </span>
               </button>
             ))}

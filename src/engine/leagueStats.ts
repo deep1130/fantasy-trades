@@ -193,7 +193,13 @@ export function computeLeagueStats(
     for (const side of trade.sides) {
       for (const asset of side.received) {
         if (asset.kind === 'pick' && asset.resolvedFromPick) {
-          if (!bestPickFlip || asset.dynastyValue > bestPickFlip.asset.dynastyValue) {
+          const isDrafter =
+            asset.resolvedDraftedByRosterId == null ||
+            asset.resolvedDraftedByRosterId === side.rosterId
+          if (
+            isDrafter &&
+            (!bestPickFlip || asset.dynastyValue > bestPickFlip.asset.dynastyValue)
+          ) {
             bestPickFlip = { trade, asset, recipientName: side.teamName }
           }
         }

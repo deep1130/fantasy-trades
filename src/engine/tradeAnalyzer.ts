@@ -315,12 +315,18 @@ function estimateFallbackPlayerValue(
   player: SleeperPlayerLite | undefined,
   multiSeasonPar: number,
   isDynasty: boolean,
+  isLiveValueFeed: boolean,
 ): number {
-  const baseFromPar = Math.min(6500, Math.round(multiSeasonPar * 22 + 600))
-  if (!isDynasty) return Math.max(400, baseFromPar)
+  // If live FantasyCalc data loaded and this player isn't ranked in the top ~350,
+  // they are deep waiver/bench fodder—never give them an inflated 600-point floor!
+  if (isLiveValueFeed) {
+    return Math.min(220, Math.max(0, Math.round(multiSeasonPar * 6)))
+  }
+  const baseFromPar = Math.min(6500, Math.round(multiSeasonPar * 22 + 500))
+  if (!isDynasty) return Math.max(250, baseFromPar)
   const age = player?.age ?? 26
   const ageFactor = age <= 24 ? 1.25 : age >= 29 ? 0.65 : 1.0
-  return Math.max(350, Math.round(baseFromPar * ageFactor))
+  return Math.max(250, Math.round(baseFromPar * ageFactor))
 }
 
 function ordinalRound(round: number): string {
@@ -399,12 +405,13 @@ function buildTradeSides(
       pts.activeGamesMultiSeason,
       bundle,
     )
+    const isLiveFeed = valueMap.source === 'fantasycalc'
     const rawDynastyVal =
       valEntry?.dynastyValue ??
-      estimateFallbackPlayerValue(pLite, pts.multiSeasonPar, bundle.isDynasty)
+      estimateFallbackPlayerValue(pLite, pts.multiSeasonPar, bundle.isDynasty, isLiveFeed)
     const rawRedraftVal =
       valEntry?.redraftValue ??
-      estimateFallbackPlayerValue(pLite, pts.sameSeasonPar, false)
+      estimateFallbackPlayerValue(pLite, pts.sameSeasonPar, false, isLiveFeed)
 
     const dynastyVal = Math.round(rawDynastyVal * scoringMul)
     const redraftVal = Math.round(rawRedraftVal * scoringMul)
@@ -477,7 +484,12 @@ function buildTradeSides(
       )
       const rawDynastyVal =
         valEntry?.dynastyValue ??
-        estimateFallbackPlayerValue(pLite, pts.multiSeasonPar, bundle.isDynasty)
+        estimateFallbackPlayerValue(
+          pLite,
+          pts.multiSeasonPar,
+          bundle.isDynasty,
+          valueMap.source === 'fantasycalc',
+        )
       const dynastyVal = Math.round(rawDynastyVal * scoringMul)
 
       const sameSeasonPickPts =
@@ -488,9 +500,11 @@ function buildTradeSides(
         pick.season === snap.league.season ? pts.sameSeasonPar : 0
 
       const slotStr = `${pick.round}.${String(resolved.draftSlot).padStart(2, '0')}`
+      const pKey = `${pick.season}-${pick.round}-${pick.roster_id}`
       side.received.push({
         kind: 'pick',
-        id: `${pick.season}-${pick.round}-${pick.roster_id}`,
+        id: pKey,
+        pickKey: pKey,
         label: `${pick.season} ${slotStr} · ${draftedName}`,
         sublabel: `${pos ?? 'PICK'} · via ${origOwnerName}`,
         position: pos,
@@ -507,6 +521,7 @@ function buildTradeSides(
         leaguePpg: pts.leaguePpg,
         gamesPlayed: pts.activeGamesMultiSeason,
         resolvedFromPick: pickLabelBase,
+        resolvedDraftedByRosterId: resolved.pick.roster_id,
       })
     } else {
       const tier = pickTiers.get(pick.roster_id) ?? 'Mid'
@@ -609,7 +624,8 @@ function buildTradeSides(
     })
 
     // Long-Term Package-Adjusted Dynasty Score
-    // Discounts extra depth pieces in 3-for-1 / 4-for-1 packages + adds realized multi-season PAR
+    // Discounts low-value bench/depth throw-ins in 3-for-1 / 4-for-1 packages,
+    // while preserving value on premium assets (>=2200 val) and Round 1 draft picks
     const ltAssets = [...side.received].sort(
       (a, b) =>
         b.dynastyValue + b.multiSeasonPar * 14 - (a.dynastyValue + a.multiSeasonPar * 14),
@@ -618,10 +634,18 @@ function buildTradeSides(
     let pkgDynastyValue = 0
     let parBonus = 0
     ltAssets.forEach((asset, idx) => {
-      const slotWeight =
-        idx < minAssetCount
-          ? 1.0
-          : longExtraSlotDecay[Math.min(longExtraSlotDecay.length - 1, idx - minAssetCount)]
+      let slotWeight = 1.0
+      if (idx >= minAssetCount) {
+        const isFirstRoundPick =
+          asset.kind === 'pick' && (asset.label.includes(' 1st') || asset.label.includes(' 1.'))
+        const isPremiumAsset = asset.dynastyValue >= 2200 || isFirstRoundPick
+        if (isPremiumAsset) {
+          slotWeight = 0.94
+        } else {
+          slotWeight =
+            longExtraSlotDecay[Math.min(longExtraSlotDecay.length - 1, idx - minAssetCount)]
+        }
+      }
       pkgDynastyValue += asset.dynastyValue * slotWeight
       parBonus += Math.min(3200, asset.multiSeasonPar * 14) * slotWeight
     })
@@ -805,7 +829,9 @@ export function analyzeLeagueTrades(
       if (sides.length < 2) continue
 
       const weeksElapsedInSeason = Math.max(0, snap.lastScoredWeek - (tx.leg || 1) + 1)
-      const isOffseason = (tx.leg || 1) <= 1 && snap.lastScoredWeek === 0
+      const seasonKickoffMs = new Date(Number(snap.league.season), 8, 1).getTime()
+      const isOffseason =
+        (tx.leg || 1) <= 1 && (snap.lastScoredWeek === 0 || tx.created < seasonKickoffMs)
       const winners = classifyWinners(
         sides,
         bundle.isDynasty,

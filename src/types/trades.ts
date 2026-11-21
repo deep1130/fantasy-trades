@@ -187,6 +187,8 @@ export interface TradedAsset {
   leaguePpg?: number
   gamesPlayed?: number
   resolvedFromPick?: string
+  resolvedDraftedByRosterId?: number
+  pickKey?: string
   pickTier?: 'Early' | 'Mid' | 'Late'
 }
 
