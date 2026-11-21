@@ -1,4 +1,5 @@
 import { lookupPickValue } from '../api/dynastyValues'
+import { classifyTeamWindowsAtWeek, computeWindowFitGrade } from './teamWindow'
 import type {
   AnalyzedTrade,
   DynastyValueMap,
@@ -488,6 +489,10 @@ function buildTradeSides(
 ): TradeSide[] {
   const currentSeasonStr = bundle.currentLeague.season
   const sideMap = new Map<number, TradeSide>()
+  const seasonKickoffMs = new Date(Number(snap.league.season), 8, 1).getTime()
+  const isOffseasonTx =
+    (tx.leg || 1) <= 1 && (snap.lastScoredWeek === 0 || tx.created < seasonKickoffMs)
+  const windowMap = classifyTeamWindowsAtWeek(snap, tx.leg || 1, isOffseasonTx, valueMap)
 
   const rosterIds = Array.from(
     new Set([
@@ -500,7 +505,9 @@ function buildTradeSides(
 
   for (const rId of rosterIds) {
     const idInfo = currentIdentities.get(rId) ?? seasonIdentities.get(rId)
-    const seasonRec = seasonIdentities.get(rId)?.seasonRecord ?? idInfo?.seasonRecord ?? null
+    const winInfo = windowMap.get(rId)
+    const seasonRec =
+      winInfo?.recordLabel ?? seasonIdentities.get(rId)?.seasonRecord ?? idInfo?.seasonRecord ?? null
     sideMap.set(rId, {
       rosterId: rId,
       ownerId: idInfo?.ownerId ?? null,
@@ -508,6 +515,10 @@ function buildTradeSides(
       ownerHandle: idInfo?.ownerHandle ?? `Team ${rId}`,
       avatarUrl: idInfo?.avatarUrl ?? null,
       seasonRecord: seasonRec,
+      windowTier: winInfo?.tier ?? 'Bubble',
+      windowFitGrade: 'B',
+      shortWeight: winInfo?.shortWeight ?? 0.45,
+      longWeight: winInfo?.longWeight ?? 0.55,
       received: [],
       shortTermScore: 0,
       shortTermPts: 0,
@@ -872,11 +883,19 @@ function buildTradeSides(
     })
   }
 
-  const stGrades = assignGrades(sides.map((s) => s.shortTermScore))
-  const ltGrades = assignGrades(sides.map((s) => s.longTermScore))
+  const stScores = sides.map((s) => s.shortTermScore)
+  const ltScores = sides.map((s) => s.longTermScore)
+  const stAvg = stScores.reduce((a, b) => a + b, 0) / Math.max(1, stScores.length)
+  const ltAvg = ltScores.reduce((a, b) => a + b, 0) / Math.max(1, ltScores.length)
+
+  const stGrades = assignGrades(stScores)
+  const ltGrades = assignGrades(ltScores)
   sides.forEach((s, i) => {
     s.shortTermGrade = stGrades[i]
     s.longTermGrade = ltGrades[i]
+    const stRatio = stAvg > 0 ? (s.shortTermScore - stAvg) / stAvg : 0
+    const ltRatio = ltAvg > 0 ? (s.longTermScore - ltAvg) / ltAvg : 0
+    s.windowFitGrade = computeWindowFitGrade(stRatio, ltRatio, s.windowTier, bundle.isDynasty)
   })
 
   return sides
@@ -965,8 +984,24 @@ function classifyWinners(
     typeof longTermWinner === 'number' &&
     shortTermWinner !== longTermWinner
   ) {
-    verdict = 'win-win'
-    verdictLabel = 'Win-Win · Contender vs Rebuilder'
+    const stSide = sides.find((s) => s.rosterId === shortTermWinner)
+    const ltSide = sides.find((s) => s.rosterId === longTermWinner)
+    const stIsRebuilder = stSide?.windowTier === 'Rebuilder'
+    const ltIsContender = ltSide?.windowTier === 'Contender'
+
+    if (stIsRebuilder && ltIsContender) {
+      verdict = 'mismatch'
+      verdictLabel = `Strategy Mismatch · ${stSide.teamName} Bought Win-Now`
+    } else if (stIsRebuilder) {
+      verdict = 'mismatch'
+      verdictLabel = `Rebuilder Gamble · ${stSide.teamName}`
+    } else if (ltIsContender && stSide?.windowTier !== 'Contender') {
+      verdict = 'mismatch'
+      verdictLabel = `Contender Sold Early · ${ltSide.teamName}`
+    } else {
+      verdict = 'win-win'
+      verdictLabel = 'True Win-Win · Contender vs Rebuilder'
+    }
   } else if (
     typeof shortTermWinner === 'number' &&
     shortTermWinner === longTermWinner
@@ -979,14 +1014,26 @@ function classifyWinners(
         ? `Fleece · ${byLong[0].teamName}`
         : `Edge · ${byLong[0].teamName}`
   } else if (typeof longTermWinner === 'number') {
+    const ltSide = sides.find((s) => s.rosterId === longTermWinner)
     const bigLong = longGap > Math.max(1400, byLong[0].longTermScore * 0.24)
     verdict = bigLong ? 'fleece' : 'slight-edge'
     verdictLabel = bigLong
       ? `Long-Term Fleece · ${byLong[0].teamName}`
-      : `Long-Term Edge · ${byLong[0].teamName}`
+      : ltSide?.windowTier === 'Rebuilder'
+        ? `Smart Rebuild Sell · ${ltSide.teamName}`
+        : `Long-Term Edge · ${byLong[0].teamName}`
   } else if (typeof shortTermWinner === 'number') {
-    verdict = 'slight-edge'
-    verdictLabel = `Win-Now Edge · ${byShort[0].teamName}`
+    const stSide = sides.find((s) => s.rosterId === shortTermWinner)
+    if (stSide?.windowTier === 'Rebuilder') {
+      verdict = 'mismatch'
+      verdictLabel = `Rebuilder Win-Now Buy · ${stSide.teamName}`
+    } else if (stSide?.windowTier === 'Contender') {
+      verdict = 'slight-edge'
+      verdictLabel = `Contender Push · ${stSide.teamName}`
+    } else {
+      verdict = 'slight-edge'
+      verdictLabel = `Win-Now Edge · ${byShort[0].teamName}`
+    }
   }
 
   return {

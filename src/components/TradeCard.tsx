@@ -37,15 +37,19 @@ export function TradeCard({
     focusRosterId != null ? getFocusOutcome(trade, focusRosterId) : null
 
   const verdictClass =
-    focusOutcome === 'won-both'
-      ? 'win'
-      : focusOutcome === 'lost-both'
-        ? 'loss'
-        : focusOutcome === 'won-short' || focusOutcome === 'won-long' || trade.verdict === 'win-win'
-          ? 'split'
-          : trade.verdict === 'fleece'
-            ? 'accent'
-            : 'neutral'
+    trade.verdict === 'mismatch'
+      ? 'loss'
+      : focusOutcome === 'won-both'
+        ? 'win'
+        : focusOutcome === 'lost-both'
+          ? 'loss'
+          : focusOutcome === 'won-short' ||
+              focusOutcome === 'won-long' ||
+              trade.verdict === 'win-win'
+            ? 'split'
+            : trade.verdict === 'fleece'
+              ? 'accent'
+              : 'neutral'
 
   const dateLabel = new Date(trade.created).toLocaleDateString('en-US', {
     month: 'short',
@@ -169,6 +173,11 @@ export function TradeCard({
                     <div className="side-handle">
                       @{side.ownerHandle}
                       {side.seasonRecord ? ` · ${side.seasonRecord}` : ''}
+                      {isDynasty && (
+                        <span className={`window-tag ${side.windowTier.toLowerCase()}`}>
+                          {side.windowTier}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -307,6 +316,17 @@ export function TradeCard({
               </div>
               {isDynasty && (
                 <>
+                  <div className="breakdown-line">
+                    <span>Competitive Window</span>
+                    <strong>
+                      {side.windowTier} ({Math.round(side.shortWeight * 100)}% Short /{' '}
+                      {Math.round(side.longWeight * 100)}% Long)
+                    </strong>
+                  </div>
+                  <div className="breakdown-line">
+                    <span>Window Fit Grade</span>
+                    <strong>{side.windowFitGrade}</strong>
+                  </div>
                   <div className="breakdown-line">
                     <span>Raw Sum Dynasty Value (League Scoring)</span>
                     <strong>{side.currentDynastyValue.toLocaleString()}</strong>

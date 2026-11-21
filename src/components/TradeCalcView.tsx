@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeftRight, Check, Copy, Plus, RotateCcw, X } from 'lucide-react'
 import { lookupPickValue } from '../api/dynastyValues'
+import { classifyTeamWindowsAtWeek, computeWindowFitGrade } from '../engine/teamWindow'
 import type {
   DynastyValueMap,
   GmTradeSummary,
@@ -89,6 +90,16 @@ export function TradeCalcView({
   const [searchA, setSearchA] = useState('')
   const [searchB, setSearchB] = useState('')
   const [copied, setCopied] = useState(false)
+
+  const teamWindows = useMemo(() => {
+    if (!latest) return new Map()
+    return classifyTeamWindowsAtWeek(
+      latest,
+      Math.max(4, (latest.lastScoredWeek || 0) + 1),
+      latest.lastScoredWeek === 0,
+      valueMap,
+    )
+  }, [latest, valueMap])
 
   // Compute MaxPF pick tiers for current league rosters
   const pickTiers = useMemo(() => {
@@ -219,11 +230,55 @@ export function TradeCalcView({
 
     const totalRed = aRec.redraft + bRec.redraft
     const stAvg = totalRed / 2
-    const aStGrade = stAvg > 0 ? gradeFromRatio((aRec.redraft - stAvg) / stAvg) : '--'
-    const bStGrade = stAvg > 0 ? gradeFromRatio((bRec.redraft - stAvg) / stAvg) : '--'
+    const aStRatio = stAvg > 0 ? (aRec.redraft - stAvg) / stAvg : 0
+    const bStRatio = stAvg > 0 ? (bRec.redraft - stAvg) / stAvg : 0
+    const aLtRatio = avg > 0 ? (aRec.adjusted - avg) / avg : 0
+    const bLtRatio = avg > 0 ? (bRec.adjusted - avg) / avg : 0
+    const aStGrade = stAvg > 0 ? gradeFromRatio(aStRatio) : '--'
+    const bStGrade = stAvg > 0 ? gradeFromRatio(bStRatio) : '--'
 
-    return { aRec, bRec, aPct, aGrade, bGrade, aStGrade, bStGrade, diff }
-  }, [selectedA, selectedB, bundle.isDynasty])
+    const winA = teamWindows.get(teamAId)
+    const winB = teamWindows.get(teamBId)
+    const aFitGrade =
+      totalAdj > 0
+        ? computeWindowFitGrade(aStRatio, aLtRatio, winA?.tier ?? 'Bubble', bundle.isDynasty)
+        : '--'
+    const bFitGrade =
+      totalAdj > 0
+        ? computeWindowFitGrade(bStRatio, bLtRatio, winB?.tier ?? 'Bubble', bundle.isDynasty)
+        : '--'
+
+    let fitSummary: string | null = null
+    if (bundle.isDynasty && selectedA.length > 0 && selectedB.length > 0 && winA && winB) {
+      const aWinsSt = aRec.redraft > bRec.redraft * 1.08
+      const bWinsSt = bRec.redraft > aRec.redraft * 1.08
+      const aWinsLt = aRec.adjusted > bRec.adjusted * 1.06
+      const bWinsLt = bRec.adjusted > aRec.adjusted * 1.06
+
+      if ((winA.tier === 'Contender' && aWinsSt && winB.tier === 'Rebuilder' && bWinsLt) ||
+          (winB.tier === 'Contender' && bWinsSt && winA.tier === 'Rebuilder' && aWinsLt)) {
+        fitSummary = `True Win-Win Fit: Contender gains Win-Now firepower while Rebuilder gains Long-Term capital.`
+      } else if (winA.tier === 'Rebuilder' && aWinsSt && bWinsLt) {
+        fitSummary = `Strategy Mismatch: ${teamA?.teamName ?? 'Team A'} (Rebuilder) is giving up Long-Term value for Short-Term points.`
+      } else if (winB.tier === 'Rebuilder' && bWinsSt && aWinsLt) {
+        fitSummary = `Strategy Mismatch: ${teamB?.teamName ?? 'Team B'} (Rebuilder) is giving up Long-Term value for Short-Term points.`
+      }
+    }
+
+    return {
+      aRec,
+      bRec,
+      aPct,
+      aGrade,
+      bGrade,
+      aStGrade,
+      bStGrade,
+      aFitGrade,
+      bFitGrade,
+      fitSummary,
+      diff,
+    }
+  }, [selectedA, selectedB, bundle.isDynasty, teamWindows, teamAId, teamBId])
 
   const teamA = gms.find((g) => g.rosterId === teamAId)
   const teamB = gms.find((g) => g.rosterId === teamBId)
@@ -296,20 +351,29 @@ export function TradeCalcView({
         <div className="split-bar-wrap" style={{ marginTop: 12 }}>
           <div className="split-bar-labels">
             <span>
-              {teamA?.teamName} receives: <strong>{evaluation.aGrade}</strong> (
-              {evaluation.aRec.adjusted.toLocaleString()} value
-              {bundle.isDynasty ? ` · Short-Term ${evaluation.aStGrade}` : ''})
+              {teamA?.teamName} ({teamWindows.get(teamAId)?.tier ?? 'Bubble'}) receives:{' '}
+              <strong>{evaluation.aGrade}</strong> ({evaluation.aRec.adjusted.toLocaleString()} value
+              {bundle.isDynasty
+                ? ` · Short-Term ${evaluation.aStGrade} · Fit ${evaluation.aFitGrade}`
+                : ''}
+              )
             </span>
             <span>
-              {teamB?.teamName} receives: <strong>{evaluation.bGrade}</strong> (
-              {evaluation.bRec.adjusted.toLocaleString()} value
-              {bundle.isDynasty ? ` · Short-Term ${evaluation.bStGrade}` : ''})
+              {teamB?.teamName} ({teamWindows.get(teamBId)?.tier ?? 'Bubble'}) receives:{' '}
+              <strong>{evaluation.bGrade}</strong> ({evaluation.bRec.adjusted.toLocaleString()} value
+              {bundle.isDynasty
+                ? ` · Short-Term ${evaluation.bStGrade} · Fit ${evaluation.bFitGrade}`
+                : ''}
+              )
             </span>
           </div>
           <div className="split-bar-track">
             <div className="split-bar-fill-a" style={{ width: `${evaluation.aPct}%` }} />
             <div className="split-bar-fill-b" style={{ width: `${100 - evaluation.aPct}%` }} />
           </div>
+          {evaluation.fitSummary && (
+            <div className="calc-fit-note">{evaluation.fitSummary}</div>
+          )}
         </div>
       </div>
 

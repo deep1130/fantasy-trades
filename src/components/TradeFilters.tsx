@@ -10,6 +10,7 @@ export type OutcomeFilter =
   | 'won-long'
   | 'lost-both'
   | 'win-win'
+  | 'mismatch'
   | 'fleece'
   | 'even'
 
@@ -159,7 +160,8 @@ export function TradeFilters({
               </>
             ) : (
               <>
-                {isDynasty && <option value="win-win">Win-Win Splits</option>}
+                {isDynasty && <option value="win-win">True Win-Win (Contender vs Rebuilder)</option>}
+                {isDynasty && <option value="mismatch">Strategy Mismatches</option>}
                 <option value="fleece">Fleeces Only</option>
                 <option value="even">Even / Fair</option>
               </>
@@ -299,8 +301,13 @@ export function TradeFilters({
         </span>
         {isDynasty && (
           <span>
-            <strong>Long-Term:</strong> Dynasty asset value (league scoring adjusted) + multi-year
-            output
+            <strong>Long-Term:</strong> Dynasty value (league scoring adjusted) + multi-year output
+          </span>
+        )}
+        {isDynasty && (
+          <span>
+            <strong>Window Tag:</strong> Contender (65% Short / 35% Long) vs Rebuilder (15% Short /
+            85% Long) at trade time
           </span>
         )}
         <span>

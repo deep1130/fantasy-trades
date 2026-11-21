@@ -209,6 +209,8 @@ export interface TradedAsset {
   chainKey?: string
 }
 
+export type TeamWindowTier = 'Contender' | 'Bubble' | 'Rebuilder'
+
 export interface TradeSide {
   rosterId: number
   ownerId: string | null
@@ -216,6 +218,10 @@ export interface TradeSide {
   ownerHandle: string
   avatarUrl: string | null
   seasonRecord: string | null
+  windowTier: TeamWindowTier
+  windowFitGrade: string
+  shortWeight: number
+  longWeight: number
   received: TradedAsset[]
   shortTermScore: number
   shortTermPts: number
@@ -237,6 +243,7 @@ export type TradeWinnerSide = number | 'even' | 'pending'
 export type DynastyVerdictType =
   | 'fleece'
   | 'win-win'
+  | 'mismatch'
   | 'slight-edge'
   | 'even'
   | 'pending'

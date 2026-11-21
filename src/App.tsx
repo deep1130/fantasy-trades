@@ -350,6 +350,7 @@ export default function App() {
           if (outcomeFilter === 'lost-both' && persp !== 'lost-both') return false
         } else {
           if (outcomeFilter === 'win-win' && t.verdict !== 'win-win') return false
+          if (outcomeFilter === 'mismatch' && t.verdict !== 'mismatch') return false
           if (outcomeFilter === 'fleece' && t.verdict !== 'fleece') return false
           if (outcomeFilter === 'even' && t.verdict !== 'even') return false
         }
