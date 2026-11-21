@@ -1,5 +1,7 @@
-import { ChevronDown, Search, Users } from 'lucide-react'
+import { ChevronDown, GitBranch, Search, Users, X } from 'lucide-react'
 import type { GmTradeSummary, PartnerPairStats } from '../types/trades'
+
+export type TradeSortOption = 'newest' | 'fleece' | 'blockbuster' | 'short-swing' | 'oldest'
 
 export type OutcomeFilter =
   | 'all'
@@ -24,8 +26,12 @@ interface TradeFiltersProps {
   availableSeasons: string[]
   outcomeFilter: OutcomeFilter
   onChangeOutcomeFilter: (outcome: OutcomeFilter) => void
+  sortBy: TradeSortOption
+  onChangeSortBy: (sort: TradeSortOption) => void
   searchQuery: string
   onChangeSearchQuery: (q: string) => void
+  assetChainFilter: { chainKey: string; label: string } | null
+  onClearAssetChain: () => void
   partnerRecord: PartnerPairStats | null
   filteredCount: number
 }
@@ -43,8 +49,12 @@ export function TradeFilters({
   availableSeasons,
   outcomeFilter,
   onChangeOutcomeFilter,
+  sortBy,
+  onChangeSortBy,
   searchQuery,
   onChangeSearchQuery,
+  assetChainFilter,
+  onClearAssetChain,
   partnerRecord,
   filteredCount,
 }: TradeFiltersProps) {
@@ -172,6 +182,19 @@ export function TradeFilters({
             </select>
           )}
 
+          <select
+            aria-label="Sort trades"
+            className="compact-select"
+            value={sortBy}
+            onChange={(e) => onChangeSortBy(e.target.value as TradeSortOption)}
+          >
+            <option value="newest">Sort: Newest</option>
+            <option value="fleece">Sort: Biggest Fleece</option>
+            <option value="blockbuster">Sort: Biggest Blockbuster</option>
+            <option value="short-swing">Sort: Short-Term Swing</option>
+            <option value="oldest">Sort: Oldest</option>
+          </select>
+
           <div className="search-box">
             <Search size={13} />
             <input
@@ -243,6 +266,18 @@ export function TradeFilters({
 
       <div className="filter-summary-bar" style={{ marginBottom: 0, marginTop: 8 }}>
         <span>SHOWING {filteredCount} MATCHING TRADES</span>
+        {assetChainFilter && (
+          <button
+            type="button"
+            className="chain-active-pill"
+            onClick={onClearAssetChain}
+            title="Clear asset trade chain filter"
+          >
+            <GitBranch size={11} />
+            <span>Trade Chain: {assetChainFilter.label}</span>
+            <X size={11} />
+          </button>
+        )}
         {partnerRecord && focusRosterId != null && (
           <div className="partner-h2h-pill">
             <Users size={12} />

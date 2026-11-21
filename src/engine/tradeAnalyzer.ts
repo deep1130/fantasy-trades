@@ -21,6 +21,7 @@ interface RosterIdentity {
   teamName: string
   ownerHandle: string
   avatarUrl: string | null
+  seasonRecord: string | null
 }
 
 function getAvatarUrl(avatar?: string | null, metaAvatar?: string | null): string | null {
@@ -37,16 +38,36 @@ function buildIdentityMap(snapshot: SeasonSnapshot): Map<number, RosterIdentity>
   const userMap = new Map(snapshot.users.map((u) => [u.user_id, u]))
   const map = new Map<number, RosterIdentity>()
 
+  const ranked = [...snapshot.rosters].sort((a, b) => {
+    const wA = a.settings.wins ?? 0
+    const wB = b.settings.wins ?? 0
+    if (wA !== wB) return wB - wA
+    const fA = (a.settings.fpts ?? 0) + (a.settings.fpts_decimal ?? 0) / 100
+    const fB = (b.settings.fpts ?? 0) + (b.settings.fpts_decimal ?? 0) / 100
+    return fB - fA
+  })
+  const rankByRoster = new Map(ranked.map((r, i) => [r.roster_id, i + 1]))
+
   for (const r of snapshot.rosters) {
     const user = r.owner_id ? userMap.get(r.owner_id) : undefined
     const handle = user?.display_name || `Team ${r.roster_id}`
     const teamName = user?.metadata?.team_name?.trim() || handle
+    const wins = r.settings.wins ?? 0
+    const losses = r.settings.losses ?? 0
+    const ties = r.settings.ties ?? 0
+    const rank = rankByRoster.get(r.roster_id)
+    const seasonRecord =
+      wins + losses + ties > 0
+        ? `${wins}-${losses}${ties > 0 ? `-${ties}` : ''}${rank ? ` · #${rank}` : ''}`
+        : null
+
     map.set(r.roster_id, {
       rosterId: r.roster_id,
       ownerId: r.owner_id,
       teamName,
       ownerHandle: handle,
       avatarUrl: getAvatarUrl(user?.avatar, user?.metadata?.avatar),
+      seasonRecord,
     })
   }
   return map
@@ -190,6 +211,7 @@ function computePlayerPointsFromTrade(
 ): {
   sameSeasonPts: number
   sameSeasonStarterPts: number
+  sameSeasonPlayoffStarterPts: number
   sameSeasonPar: number
   multiSeasonPts: number
   multiSeasonPar: number
@@ -199,6 +221,7 @@ function computePlayerPointsFromTrade(
 } {
   let sameSeasonPts = 0
   let sameSeasonStarterPts = 0
+  let sameSeasonPlayoffStarterPts = 0
   let sameSeasonPar = 0
   let multiSeasonPts = 0
   let multiSeasonPar = 0
@@ -218,6 +241,7 @@ function computePlayerPointsFromTrade(
 
     const isSameSeason = snapYear === tradeSeasonNum
     const startWeek = isSameSeason ? Math.max(1, tradeWeek) : 1
+    const playoffStart = Number(snap.league.settings?.playoff_week_start) || 15
 
     for (let w = startWeek; w <= 18; w += 1) {
       const matchups = snap.matchupsByWeek[w]
@@ -268,6 +292,9 @@ function computePlayerPointsFromTrade(
         if (onReceivingRoster) weeksPlayedSameSeason += 1
         if (inReceivingStarters) {
           sameSeasonStarterPts += pts
+          if (w >= playoffStart && w <= 17) {
+            sameSeasonPlayoffStarterPts += pts
+          }
         }
       }
     }
@@ -285,6 +312,7 @@ function computePlayerPointsFromTrade(
   return {
     sameSeasonPts: Math.round(sameSeasonPts * 10) / 10,
     sameSeasonStarterPts: Math.round(sameSeasonStarterPts * 10) / 10,
+    sameSeasonPlayoffStarterPts: Math.round(sameSeasonPlayoffStarterPts * 10) / 10,
     sameSeasonPar: Math.round(sameSeasonPar * 10) / 10,
     multiSeasonPts: Math.round(multiSeasonPts * 10) / 10,
     multiSeasonPar: Math.round(multiSeasonPar * 10) / 10,
@@ -362,17 +390,22 @@ function buildTradeSides(
 
   for (const rId of rosterIds) {
     const idInfo = currentIdentities.get(rId) ?? seasonIdentities.get(rId)
+    const seasonRec = seasonIdentities.get(rId)?.seasonRecord ?? idInfo?.seasonRecord ?? null
     sideMap.set(rId, {
       rosterId: rId,
       ownerId: idInfo?.ownerId ?? null,
       teamName: idInfo?.teamName ?? `Team ${rId}`,
       ownerHandle: idInfo?.ownerHandle ?? `Team ${rId}`,
       avatarUrl: idInfo?.avatarUrl ?? null,
+      seasonRecord: seasonRec,
       received: [],
       shortTermScore: 0,
       shortTermPts: 0,
       starterPts: 0,
+      playoffStarterPts: 0,
+      shortTermGrade: 'B',
       longTermScore: 0,
+      longTermGrade: 'B',
       currentDynastyValue: 0,
       packageAdjustedValue: 0,
       realizedParBonus: 0,
@@ -419,6 +452,7 @@ function buildTradeSides(
     side.received.push({
       kind: 'player',
       id: playerId,
+      chainKey: `player:${playerId}`,
       label: pLite?.name ?? valEntry?.name ?? `Player ${playerId}`,
       sublabel: pLite
         ? `${pLite.position} · ${pLite.team}${pLite.age ? ` · ${pLite.age}y` : ''}`
@@ -427,6 +461,7 @@ function buildTradeSides(
       age: pLite?.age ?? valEntry?.age ?? null,
       shortTermPts: pts.sameSeasonPts,
       starterPts: pts.sameSeasonStarterPts,
+      playoffStarterPts: pts.sameSeasonPlayoffStarterPts,
       parPts: pts.sameSeasonPar,
       redraftValue: redraftVal,
       multiSeasonPts: pts.multiSeasonPts,
@@ -496,6 +531,8 @@ function buildTradeSides(
         pick.season === snap.league.season ? pts.sameSeasonPts : 0
       const sameSeasonStarter =
         pick.season === snap.league.season ? pts.sameSeasonStarterPts : 0
+      const sameSeasonPlayoff =
+        pick.season === snap.league.season ? pts.sameSeasonPlayoffStarterPts : 0
       const sameSeasonPar =
         pick.season === snap.league.season ? pts.sameSeasonPar : 0
 
@@ -505,12 +542,14 @@ function buildTradeSides(
         kind: 'pick',
         id: pKey,
         pickKey: pKey,
+        chainKey: `pick:${pKey}`,
         label: `${pick.season} ${slotStr} · ${draftedName}`,
         sublabel: `${pos ?? 'PICK'} · via ${origOwnerName}`,
         position: pos,
         age: pLite?.age ?? valEntry?.age ?? null,
         shortTermPts: sameSeasonPickPts,
         starterPts: sameSeasonStarter,
+        playoffStarterPts: sameSeasonPlayoff,
         parPts: sameSeasonPar,
         redraftValue: Math.round((valEntry?.redraftValue ?? 0) * scoringMul),
         multiSeasonPts: pts.multiSeasonPts,
@@ -532,13 +571,17 @@ function buildTradeSides(
         tier,
         currentSeasonStr,
       )
+      const pKey = `${pick.season}-${pick.round}-${pick.roster_id}`
       side.received.push({
         kind: 'pick',
-        id: `${pick.season}-${pick.round}-${pick.roster_id}`,
+        id: pKey,
+        pickKey: pKey,
+        chainKey: `pick:${pKey}`,
         label: `${pickLabelBase} (${tier})`,
         sublabel: `Orig: ${origOwnerName}`,
         shortTermPts: 0,
         starterPts: 0,
+        playoffStarterPts: 0,
         parPts: 0,
         redraftValue: 0,
         multiSeasonPts: 0,
@@ -560,6 +603,7 @@ function buildTradeSides(
       sublabel: 'Waiver Budget',
       shortTermPts: 0,
       starterPts: 0,
+      playoffStarterPts: 0,
       parPts: 0,
       redraftValue: faab.amount * 3,
       multiSeasonPts: 0,
@@ -596,15 +640,19 @@ function buildTradeSides(
 
     const rawStPts = side.received.reduce((s, a) => s + a.shortTermPts, 0)
     const rawStarterPts = side.received.reduce((s, a) => s + a.starterPts, 0)
+    const rawPlayoffPts = side.received.reduce((s, a) => s + a.playoffStarterPts, 0)
     const rawMultiPts = side.received.reduce((s, a) => s + a.multiSeasonPts, 0)
     const rawDynVal = side.received.reduce((s, a) => s + a.dynastyValue, 0)
 
     // Short-Term Lineup-Slot Adjusted Impact Score (in fantasy points)
-    // Weighs actual starter points + points above replacement + remaining current-season projection,
-    // and discounts extra bench pieces in uneven 2-for-1 / 3-for-1 trades
+    // Weighs actual starter points + 0.25x clutch playoff bonus + PAR + remaining season projection
     const stValues = side.received
       .map((a) => {
-        const onFieldImpact = a.starterPts * 0.6 + a.shortTermPts * 0.4 + a.parPts * 0.45
+        const onFieldImpact =
+          a.starterPts * 0.6 +
+          a.playoffStarterPts * 0.25 +
+          a.shortTermPts * 0.4 +
+          a.parPts * 0.45
         const rosPts =
           remainingWeeks > 0 && a.redraftValue > 0
             ? (a.redraftValue / 1000) * 1.45 * remainingWeeks
@@ -652,6 +700,7 @@ function buildTradeSides(
 
     side.shortTermPts = Math.round(rawStPts * 10) / 10
     side.starterPts = Math.round(rawStarterPts * 10) / 10
+    side.playoffStarterPts = Math.round(rawPlayoffPts * 10) / 10
     side.shortTermScore = Math.round(stImpactScore * 10) / 10
     side.currentDynastyValue = Math.round(rawDynVal)
     side.packageAdjustedValue = Math.round(pkgDynastyValue)
@@ -661,7 +710,7 @@ function buildTradeSides(
   }
 
   // Stud Cornerstone Bonus: if the single highest-value asset in the trade is an elite stud (>=5000)
-  // and beats the other side's top asset by >=1500, grant a 12% stud consolidation bonus on the gap
+  // and beats the other side's top asset by >=1500, grant a 14% stud consolidation bonus on the gap
   if (sides.length >= 2) {
     const topByAsset = [...sides].sort(
       (a, b) => (b.received[0]?.dynastyValue ?? 0) - (a.received[0]?.dynastyValue ?? 0),
@@ -674,6 +723,33 @@ function buildTradeSides(
       topByAsset[0].longTermScore += studBonus
     }
   }
+
+  // Compute intuitive side-by-side letter grades (A+ through F)
+  const assignGrades = (scores: number[]): string[] => {
+    const avg = scores.reduce((s, x) => s + x, 0) / Math.max(1, scores.length)
+    if (avg <= 0) return scores.map(() => '--')
+    return scores.map((val) => {
+      const ratio = (val - avg) / avg
+      if (ratio >= 0.45) return 'A+'
+      if (ratio >= 0.25) return 'A'
+      if (ratio >= 0.13) return 'A-'
+      if (ratio >= 0.04) return 'B+'
+      if (ratio >= -0.04) return 'B'
+      if (ratio >= -0.13) return 'B-'
+      if (ratio >= -0.25) return 'C+'
+      if (ratio >= -0.4) return 'C'
+      if (ratio >= -0.55) return 'C-'
+      if (ratio >= -0.75) return 'D'
+      return 'F'
+    })
+  }
+
+  const stGrades = assignGrades(sides.map((s) => s.shortTermScore))
+  const ltGrades = assignGrades(sides.map((s) => s.longTermScore))
+  sides.forEach((s, i) => {
+    s.shortTermGrade = stGrades[i]
+    s.longTermGrade = ltGrades[i]
+  })
 
   return sides
 }
@@ -853,6 +929,29 @@ export function analyzeLeagueTrades(
         totalTradeVolume,
         weeksElapsedInSeason,
       })
+    }
+  }
+
+  // Count how many distinct trades each player or draft pick appeared in (for Asset Trade Chain badges)
+  const assetTradeSets = new Map<string, Set<string>>()
+  for (const trade of analyzed) {
+    for (const side of trade.sides) {
+      for (const asset of side.received) {
+        if (!asset.chainKey) continue
+        if (!assetTradeSets.has(asset.chainKey)) {
+          assetTradeSets.set(asset.chainKey, new Set())
+        }
+        assetTradeSets.get(asset.chainKey)!.add(trade.id)
+      }
+    }
+  }
+  for (const trade of analyzed) {
+    for (const side of trade.sides) {
+      for (const asset of side.received) {
+        if (asset.chainKey) {
+          asset.flipCount = assetTradeSets.get(asset.chainKey)?.size ?? 1
+        }
+      }
     }
   }
 

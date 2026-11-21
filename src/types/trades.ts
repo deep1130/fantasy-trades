@@ -177,6 +177,7 @@ export interface TradedAsset {
   age?: number | null
   shortTermPts: number
   starterPts: number
+  playoffStarterPts: number
   parPts: number
   redraftValue: number
   multiSeasonPts: number
@@ -190,6 +191,8 @@ export interface TradedAsset {
   resolvedDraftedByRosterId?: number
   pickKey?: string
   pickTier?: 'Early' | 'Mid' | 'Late'
+  flipCount?: number
+  chainKey?: string
 }
 
 export interface TradeSide {
@@ -198,11 +201,15 @@ export interface TradeSide {
   teamName: string
   ownerHandle: string
   avatarUrl: string | null
+  seasonRecord: string | null
   received: TradedAsset[]
   shortTermScore: number
   shortTermPts: number
   starterPts: number
+  playoffStarterPts: number
+  shortTermGrade: string
   longTermScore: number
+  longTermGrade: string
   currentDynastyValue: number
   packageAdjustedValue: number
   realizedParBonus: number

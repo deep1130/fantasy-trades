@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Copy, GitBranch, Trophy } from 'lucide-react'
 import { getFocusOutcome } from '../engine/tradeAnalyzer'
 import type { AnalyzedTrade, TradeSide } from '../types/trades'
 
 interface TradeCardProps {
   trade: AnalyzedTrade
+  leagueName: string
   isDynasty: boolean
   focusRosterId: number | null
   highlighted?: boolean
+  onFilterAssetChain: (chainKey: string, label: string) => void
 }
 
 function winnerName(sides: TradeSide[], winnerId: number | 'even' | 'pending'): string {
@@ -16,8 +18,16 @@ function winnerName(sides: TradeSide[], winnerId: number | 'even' | 'pending'): 
   return sides.find((s) => s.rosterId === winnerId)?.teamName ?? `Team ${winnerId}`
 }
 
-export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: TradeCardProps) {
+export function TradeCard({
+  trade,
+  leagueName,
+  isDynasty,
+  focusRosterId,
+  highlighted,
+  onFilterAssetChain,
+}: TradeCardProps) {
   const [expanded, setExpanded] = useState(Boolean(highlighted))
+  const [copiedReceipt, setCopiedReceipt] = useState(false)
 
   useEffect(() => {
     if (highlighted) setExpanded(true)
@@ -43,6 +53,29 @@ export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: Trad
     year: 'numeric',
   })
 
+  const hasPlayoffHero = trade.sides.some((s) => s.playoffStarterPts >= 35)
+
+  const handleCopyReceipt = async () => {
+    const when = trade.isOffseason ? `${trade.season} Offseason` : `${trade.season} Wk ${trade.week}`
+    const lines = [`📊 ${when} Trade — ${leagueName}`]
+    for (const s of trade.sides) {
+      const recStr = s.seasonRecord ? ` (${s.seasonRecord})` : ''
+      const assets = s.received.map((a) => a.label).join(', ')
+      const grades = isDynasty
+        ? `[ST: ${s.shortTermGrade} | LT: ${s.longTermGrade}]`
+        : `[Grade: ${s.shortTermGrade}]`
+      lines.push(`• ${s.teamName}${recStr} got: ${assets} ${grades}`)
+    }
+    const stWin = winnerName(trade.sides, trade.shortTermWinner)
+    const ltWin = winnerName(trade.sides, trade.longTermWinner)
+    lines.push(
+      `🏆 Verdict: ${trade.verdictLabel} (${isDynasty ? `ST: ${stWin} | LT: ${ltWin}` : `Winner: ${stWin}`})`,
+    )
+    await navigator.clipboard.writeText(lines.join('\n'))
+    setCopiedReceipt(true)
+    setTimeout(() => setCopiedReceipt(false), 1800)
+  }
+
   return (
     <article
       id={`trade-${trade.id}`}
@@ -60,6 +93,12 @@ export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: Trad
               <span>·</span>
               <span>{trade.sides.length}-Team Trade</span>
             </>
+          )}
+          {hasPlayoffHero && (
+            <span className="pill split" title="Acquired players delivered 35+ starter points in fantasy playoffs">
+              <Trophy size={10} />
+              Playoff Impact
+            </span>
           )}
         </div>
 
@@ -113,23 +152,26 @@ export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: Trad
                         </span>
                       )}
                     </div>
-                    <div className="side-handle">@{side.ownerHandle} received</div>
+                    <div className="side-handle">
+                      @{side.ownerHandle}
+                      {side.seasonRecord ? ` · ${side.seasonRecord}` : ''}
+                    </div>
                   </div>
                 </div>
 
                 <div className="side-scores">
                   <span
                     className={`score-chip ${isShortWin ? 'winner' : ''}`}
-                    title="Short-Term Lineup Impact Score"
+                    title="Short-Term Grade & Lineup Impact Score"
                   >
-                    ST {side.shortTermScore.toFixed(1)}
+                    ST <strong>{side.shortTermGrade}</strong> · {side.shortTermScore.toFixed(1)}
                   </span>
                   {isDynasty && (
                     <span
                       className={`score-chip ${isLongWin ? 'winner' : ''}`}
-                      title="Long-Term Dynasty Score (package-adjusted value + multi-year PAR)"
+                      title="Long-Term Dynasty Grade & Score"
                     >
-                      LT {side.longTermScore.toLocaleString()}
+                      LT <strong>{side.longTermGrade}</strong> · {side.longTermScore.toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -144,6 +186,17 @@ export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: Trad
                           {asset.position ?? (asset.kind === 'pick' ? 'PICK' : 'FAAB')}
                         </span>
                         <span>{asset.label}</span>
+                        {asset.flipCount && asset.flipCount >= 2 && asset.chainKey && (
+                          <button
+                            type="button"
+                            className="flip-pill"
+                            onClick={() => onFilterAssetChain(asset.chainKey!, asset.label)}
+                            title="View full trade chain for this asset"
+                          >
+                            <GitBranch size={9} />
+                            <span>{asset.flipCount}×</span>
+                          </button>
+                        )}
                       </div>
                       {(asset.sublabel || (asset.leaguePpg && asset.leaguePpg > 0)) && (
                         <div className="asset-sub">
@@ -188,29 +241,48 @@ export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: Trad
           ST Δ {trade.shortTermMargin.toFixed(1)} impact pts
           {isDynasty && ` · LT Δ ${trade.longTermMargin.toLocaleString()} dynasty val`}
         </span>
-        <button
-          type="button"
-          className="expand-btn"
-          onClick={() => setExpanded((prev) => !prev)}
-        >
-          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          <span>{expanded ? 'Hide Math' : 'Score Breakdown'}</span>
-        </button>
+        <div className="foot-actions">
+          <button
+            type="button"
+            className="receipt-btn"
+            onClick={() => void handleCopyReceipt()}
+            title="Copy formatted trade summary for Sleeper or Discord chat"
+          >
+            {copiedReceipt ? <Check size={12} /> : <Copy size={12} />}
+            <span>{copiedReceipt ? 'Copied!' : 'Copy Receipt'}</span>
+          </button>
+          <button
+            type="button"
+            className="expand-btn"
+            onClick={() => setExpanded((prev) => !prev)}
+          >
+            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            <span>{expanded ? 'Hide Math' : 'Score Breakdown'}</span>
+          </button>
+        </div>
       </div>
 
       {expanded && (
         <div className="trade-breakdown">
           {trade.sides.map((side) => (
             <div key={side.rosterId} className="breakdown-box">
-              <h4>{side.teamName}</h4>
+              <h4>
+                {side.teamName} {side.seasonRecord ? `(${side.seasonRecord})` : ''}
+              </h4>
               <div className="breakdown-line">
                 <span>Post-Trade Points (Started / Total)</span>
                 <strong>
                   {side.starterPts.toFixed(1)} / {side.shortTermPts.toFixed(1)}
                 </strong>
               </div>
+              {side.playoffStarterPts > 0 && (
+                <div className="breakdown-line">
+                  <span>Playoff Starter Pts (Wks 15–17)</span>
+                  <strong>{side.playoffStarterPts.toFixed(1)}</strong>
+                </div>
+              )}
               <div className="breakdown-line">
-                <span>Short-Term Lineup Impact Score</span>
+                <span>Short-Term Lineup Impact ({side.shortTermGrade})</span>
                 <strong>{side.shortTermScore.toFixed(1)}</strong>
               </div>
               {isDynasty && (
@@ -228,7 +300,7 @@ export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: Trad
                     <strong>+{side.realizedParBonus.toLocaleString()}</strong>
                   </div>
                   <div className="breakdown-line">
-                    <span>Final Long-Term Dynasty Score</span>
+                    <span>Final Long-Term Score ({side.longTermGrade})</span>
                     <strong>{side.longTermScore.toLocaleString()}</strong>
                   </div>
                 </>

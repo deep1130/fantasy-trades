@@ -10,7 +10,11 @@ import { PartnerMatrixView } from './components/PartnerMatrixView'
 import { SuperlativesView } from './components/SuperlativesView'
 import { TopBar } from './components/TopBar'
 import { TradeCard } from './components/TradeCard'
-import { TradeFilters, type OutcomeFilter } from './components/TradeFilters'
+import {
+  TradeFilters,
+  type OutcomeFilter,
+  type TradeSortOption,
+} from './components/TradeFilters'
 import { computeLeagueStats } from './engine/leagueStats'
 import { analyzeLeagueTrades, getFocusOutcome } from './engine/tradeAnalyzer'
 import type {
@@ -117,7 +121,12 @@ export default function App() {
   })
   const [seasonFilter, setSeasonFilter] = useState('all')
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>('all')
+  const [sortBy, setSortBy] = useState<TradeSortOption>('newest')
   const [searchQuery, setSearchQuery] = useState('')
+  const [assetChainFilter, setAssetChainFilter] = useState<{
+    chainKey: string
+    label: string
+  } | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -311,7 +320,13 @@ export default function App() {
 
   const filteredTrades = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return trades.filter((t) => {
+    const list = trades.filter((t) => {
+      if (assetChainFilter) {
+        const hasAsset = t.sides.some((s) =>
+          s.received.some((a) => a.chainKey === assetChainFilter.chainKey),
+        )
+        if (!hasAsset) return false
+      }
       if (seasonFilter !== 'all' && t.season !== seasonFilter) return false
       if (focusRosterId != null && !t.sides.some((s) => s.rosterId === focusRosterId)) return false
       if (partnerRosterId != null && !t.sides.some((s) => s.rosterId === partnerRosterId)) {
@@ -346,7 +361,41 @@ export default function App() {
       }
       return true
     })
-  }, [trades, seasonFilter, focusRosterId, partnerRosterId, outcomeFilter, searchQuery])
+
+    const isDyn = bundle?.isDynasty ?? true
+    return [...list].sort((a, b) => {
+      if (sortBy === 'oldest') return a.created - b.created
+      if (sortBy === 'fleece') {
+        return isDyn
+          ? b.longTermMargin - a.longTermMargin
+          : b.shortTermMargin - a.shortTermMargin
+      }
+      if (sortBy === 'blockbuster') return b.totalTradeVolume - a.totalTradeVolume
+      if (sortBy === 'short-swing') return b.shortTermMargin - a.shortTermMargin
+      return b.created - a.created
+    })
+  }, [
+    trades,
+    assetChainFilter,
+    seasonFilter,
+    focusRosterId,
+    partnerRosterId,
+    outcomeFilter,
+    searchQuery,
+    sortBy,
+    bundle,
+  ])
+
+  const handleFilterAssetChain = useCallback((chainKey: string, label: string) => {
+    setFocusRosterId(null)
+    setPartnerRosterId(null)
+    setSeasonFilter('all')
+    setOutcomeFilter('all')
+    setSearchQuery('')
+    setAssetChainFilter({ chainKey, label })
+    setSortBy('oldest')
+    setView('trades')
+  }, [])
 
   const handleJumpToTrade = useCallback((tradeId: string) => {
     setFocusRosterId(null)
@@ -354,6 +403,7 @@ export default function App() {
     setSeasonFilter('all')
     setOutcomeFilter('all')
     setSearchQuery('')
+    setAssetChainFilter(null)
     setView('trades')
     setHighlightedTradeId(tradeId)
 
@@ -528,8 +578,15 @@ export default function App() {
               availableSeasons={availableSeasons}
               outcomeFilter={outcomeFilter}
               onChangeOutcomeFilter={setOutcomeFilter}
+              sortBy={sortBy}
+              onChangeSortBy={setSortBy}
               searchQuery={searchQuery}
               onChangeSearchQuery={setSearchQuery}
+              assetChainFilter={assetChainFilter}
+              onClearAssetChain={() => {
+                setAssetChainFilter(null)
+                setSortBy('newest')
+              }}
               partnerRecord={partnerRecord}
               filteredCount={filteredTrades.length}
             />
@@ -544,9 +601,11 @@ export default function App() {
                   <TradeCard
                     key={trade.id}
                     trade={trade}
+                    leagueName={bundle.currentLeague.name}
                     isDynasty={bundle.isDynasty}
                     focusRosterId={focusRosterId}
                     highlighted={highlightedTradeId === trade.id}
+                    onFilterAssetChain={handleFilterAssetChain}
                   />
                 ))}
               </div>
