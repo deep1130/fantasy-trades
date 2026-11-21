@@ -73,7 +73,7 @@ export function LeaderboardView({
                   DEALS <ArrowUpDown size={10} />
                 </th>
                 <th className="th-sortable" onClick={() => handleSort('shortWins')}>
-                  SHORT-TERM W–L <ArrowUpDown size={10} />
+                  {isDynasty ? 'SHORT-TERM W–L' : 'TRADE W–L'} <ArrowUpDown size={10} />
                 </th>
                 {isDynasty && (
                   <th className="th-sortable" onClick={() => handleSort('longWins')}>

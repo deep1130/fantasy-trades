@@ -197,14 +197,14 @@ export function computeLeagueStats(
     (a, b) => b.tradeCount - a.tradeCount || b.lastTradeCreated - a.lastTradeCreated,
   )
 
-  // Superlatives
+  // Superlatives (use shortTermMargin in Redraft, longTermMargin in Dynasty)
+  const marginOf = (t: AnalyzedTrade) =>
+    bundle.isDynasty ? t.longTermMargin : t.shortTermMargin
   const fleeces = trades
     .filter((t) => t.verdict === 'fleece')
-    .sort((a, b) => b.longTermMargin - a.longTermMargin)
+    .sort((a, b) => marginOf(b) - marginOf(a))
   const biggestFleece =
-    fleeces[0] ??
-    [...trades].sort((a, b) => b.longTermMargin - a.longTermMargin)[0] ??
-    null
+    fleeces[0] ?? [...trades].sort((a, b) => marginOf(b) - marginOf(a))[0] ?? null
 
   const winWins = trades
     .filter((t) => t.verdict === 'win-win')

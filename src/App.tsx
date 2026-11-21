@@ -513,10 +513,16 @@ export default function App() {
               <span>·</span> {bundle ? `${trades.length} DEALS` : 'FANTASY TRADES'}
             </p>
             <h2>
-              {view === 'trades' && 'Short-Term & Long-Term Trade Winners'}
+              {view === 'trades' &&
+                (bundle?.isDynasty
+                  ? 'Short-Term & Long-Term Trade Winners'
+                  : 'Season Trade Winners & Rest-of-Season Impact')}
               {view === 'leaderboard' && 'Manager Trade Standings & Net Value'}
               {view === 'partners' && 'Head-to-Head Trade Partner Matrix'}
-              {view === 'superlatives' && 'Biggest Fleeces & Win-Win Blockbusters'}
+              {view === 'superlatives' &&
+                (bundle?.isDynasty
+                  ? 'Biggest Fleeces & Win-Win Blockbusters'
+                  : 'Biggest Fleeces & Most Active Deal Makers')}
               {view === 'calc' && 'League-Adjusted Trade Calculator'}
             </h2>
           </div>

@@ -295,20 +295,31 @@ export function TradeFilters({
       </div>
 
       <div className="glossary-strip">
-        <span>
-          <strong>Short-Term:</strong> Immediate season lineup impact (starter pts + points above
-          replacement)
-        </span>
-        {isDynasty && (
-          <span>
-            <strong>Long-Term:</strong> Dynasty value (league scoring adjusted) + multi-year output
-          </span>
-        )}
-        {isDynasty && (
-          <span>
-            <strong>Window Tag:</strong> Contender (65% Short / 35% Long) vs Rebuilder (15% Short /
-            85% Long) at trade time
-          </span>
+        {isDynasty ? (
+          <>
+            <span>
+              <strong>Short-Term:</strong> Immediate season lineup impact (starter pts + points
+              above replacement)
+            </span>
+            <span>
+              <strong>Long-Term:</strong> Dynasty value (league scoring adjusted) + multi-year
+              output
+            </span>
+            <span>
+              <strong>Window Tag:</strong> Contender (65% Short / 35% Long) vs Rebuilder (15% Short
+              / 85% Long) at trade time
+            </span>
+          </>
+        ) : (
+          <>
+            <span>
+              <strong>Season Grade:</strong> Actual post-trade starter points + remaining-season
+              projected impact
+            </span>
+            <span>
+              <strong>ROS:</strong> Current rest-of-season redraft trade value
+            </span>
+          </>
         )}
         <span>
           <strong>PPG:</strong> Points per game in your league’s scoring

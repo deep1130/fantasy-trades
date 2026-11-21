@@ -69,7 +69,7 @@ export function KpiStrip({
               >
                 {bundle?.isDynasty
                   ? `${focusGm.longWins}-${focusGm.longLosses} Long-Term`
-                  : `${focusGm.shortWins}-${focusGm.shortLosses} Short-Term`}
+                  : `${focusGm.shortWins}-${focusGm.shortLosses} Record`}
               </span>
             </>
           ) : (
@@ -78,7 +78,9 @@ export function KpiStrip({
         </strong>
         <span className="summary-note">
           {focusGm
-            ? `Short-Term ${focusGm.shortWins}-${focusGm.shortLosses} (${focusGm.netShortTermPts >= 0 ? '+' : ''}${focusGm.netShortTermPts.toFixed(1)} pts)`
+            ? bundle?.isDynasty
+              ? `Short-Term ${focusGm.shortWins}-${focusGm.shortLosses} (${focusGm.netShortTermPts >= 0 ? '+' : ''}${focusGm.netShortTermPts.toFixed(1)} pts)`
+              : `Net Season Impact: ${focusGm.netShortTermPts >= 0 ? '+' : ''}${focusGm.netShortTermPts.toFixed(1)} pts`
             : 'Select a manager below to filter'}
         </span>
       </div>
@@ -104,7 +106,9 @@ export function KpiStrip({
         </strong>
         <span className="summary-note">
           {topGm
-            ? `${topGm.tradeCount} trades · ${topGm.longWins} Long-Term wins / ${topGm.shortWins} Short-Term wins`
+            ? bundle?.isDynasty
+              ? `${topGm.tradeCount} trades · ${topGm.longWins} Long-Term wins / ${topGm.shortWins} Short-Term wins`
+              : `${topGm.tradeCount} trades · ${topGm.shortWins}-${topGm.shortLosses} trade record`
             : 'Best net value gained across trades'}
         </span>
       </div>
@@ -139,7 +143,9 @@ export function KpiStrip({
         </strong>
         <span className="summary-note">
           {superlatives.biggestFleece
-            ? `${superlatives.biggestFleece.season} ${superlatives.biggestFleece.isOffseason ? 'Offseason' : `Wk ${superlatives.biggestFleece.week}`} · Margin ${superlatives.biggestFleece.longTermMargin.toLocaleString()} value / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts · View trade →`
+            ? bundle?.isDynasty
+              ? `${superlatives.biggestFleece.season} ${superlatives.biggestFleece.isOffseason ? 'Offseason' : `Wk ${superlatives.biggestFleece.week}`} · Margin ${superlatives.biggestFleece.longTermMargin.toLocaleString()} value / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts · View trade →`
+              : `${superlatives.biggestFleece.season} Wk ${superlatives.biggestFleece.week} · Margin +${superlatives.biggestFleece.shortTermMargin.toFixed(1)} season pts · View trade →`
             : 'Most lopsided deal in league history'}
         </span>
       </div>

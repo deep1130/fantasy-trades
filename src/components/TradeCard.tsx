@@ -122,7 +122,7 @@ export function TradeCard({
 
         <div className="verdict-badges">
           <span className="pill neutral">
-            Short-Term: {winnerName(trade.sides, trade.shortTermWinner)}
+            {isDynasty ? 'Short-Term' : 'Winner'}: {winnerName(trade.sides, trade.shortTermWinner)}
           </span>
           {isDynasty && (
             <span className="pill neutral">
@@ -185,9 +185,9 @@ export function TradeCard({
                 <div className="side-scores">
                   <span
                     className={`score-chip ${isShortWin ? 'winner' : ''}`}
-                    title={`Short-Term Grade (${side.shortTermScore.toFixed(1)} impact pts — click Score Breakdown for details)`}
+                    title={`${isDynasty ? 'Short-Term' : 'Season'} Grade (${side.shortTermScore.toFixed(1)} impact pts — click Score Breakdown for details)`}
                   >
-                    Short-Term: <strong>{side.shortTermGrade}</strong>
+                    {isDynasty ? 'Short-Term' : 'Grade'}: <strong>{side.shortTermGrade}</strong>
                   </span>
                   {isDynasty && (
                     <span
@@ -246,8 +246,20 @@ export function TradeCard({
                         </>
                       ) : (
                         <>
-                          <div>{asset.shortTermPts.toFixed(1)} pts</div>
-                          <span>{asset.starterPts.toFixed(1)} started</span>
+                          <div>
+                            {asset.shortTermPts > 0
+                              ? `${asset.shortTermPts.toFixed(1)} pts`
+                              : asset.redraftValue > 0
+                                ? `${asset.redraftValue.toLocaleString()} ROS`
+                                : '0.0 pts'}
+                          </div>
+                          <span>
+                            {asset.shortTermPts > 0
+                              ? `${asset.starterPts.toFixed(1)} started${asset.redraftValue > 0 ? ` · ${asset.redraftValue.toLocaleString()} ROS` : ''}`
+                              : asset.kind === 'faab'
+                                ? 'waiver budget'
+                                : '0.0 started yet'}
+                          </span>
                         </>
                       )}
                     </div>
@@ -261,8 +273,9 @@ export function TradeCard({
 
       <div className="trade-card-foot">
         <span>
-          Short-Term Gap: {trade.shortTermMargin.toFixed(1)} pts
-          {isDynasty && ` · Long-Term Gap: ${trade.longTermMargin.toLocaleString()} value`}
+          {isDynasty
+            ? `Short-Term Gap: ${trade.shortTermMargin.toFixed(1)} pts · Long-Term Gap: ${trade.longTermMargin.toLocaleString()} value`
+            : `Season Impact Gap: ${trade.shortTermMargin.toFixed(1)} pts`}
         </span>
         <div className="foot-actions">
           <button
@@ -311,9 +324,20 @@ export function TradeCard({
                 </div>
               )}
               <div className="breakdown-line">
-                <span>Short-Term Lineup Impact ({side.shortTermGrade})</span>
-                <strong>{side.shortTermScore.toFixed(1)}</strong>
+                <span>
+                  {isDynasty ? 'Short-Term Lineup Impact' : 'Total Season Impact (Pts + ROS)'} (
+                  {side.shortTermGrade})
+                </span>
+                <strong>{side.shortTermScore.toFixed(1)} pts</strong>
               </div>
+              {!isDynasty && (
+                <div className="breakdown-line">
+                  <span>Rest-of-Season Redraft Value</span>
+                  <strong>
+                    {side.received.reduce((s, a) => s + a.redraftValue, 0).toLocaleString()}
+                  </strong>
+                </div>
+              )}
               {isDynasty && (
                 <>
                   <div className="breakdown-line">

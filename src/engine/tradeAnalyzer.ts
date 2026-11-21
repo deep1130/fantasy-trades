@@ -829,18 +829,18 @@ function buildTradeSides(
     const rawMultiPts = side.received.reduce((s, a) => s + a.multiSeasonPts, 0)
     const rawDynVal = side.received.reduce((s, a) => s + a.dynastyValue, 0)
 
-    // Short-Term Lineup-Slot Adjusted Impact Score (in fantasy points)
-    // Weighs actual starter points + 0.25x clutch playoff bonus + PAR + remaining season projection
+    // Short-Term / Redraft Lineup-Slot Adjusted Impact Score (in fantasy points)
+    // Weighs actual starter points + 0.25x clutch playoff bonus + PAR + remaining-season projection
     const stValues = side.received
       .map((a) => {
         const onFieldImpact =
-          a.starterPts * 0.6 +
+          a.starterPts * 0.65 +
           a.playoffStarterPts * 0.25 +
-          a.shortTermPts * 0.4 +
+          a.shortTermPts * 0.35 +
           a.parPts * 0.45
         const rosPts =
           remainingWeeks > 0 && a.redraftValue > 0
-            ? (a.redraftValue / 1000) * 1.45 * remainingWeeks
+            ? (a.redraftValue / 1000) * 1.95 * remainingWeeks
             : 0
         return onFieldImpact + rosPts
       })
@@ -931,12 +931,14 @@ function buildTradeSides(
     }
   }
 
-  // Compute intuitive side-by-side letter grades (A+ through F)
-  const assignGrades = (scores: number[]): string[] => {
+  // Compute intuitive side-by-side letter grades (A+ through F) with stabilized floor
+  // so small point gaps on bench/fresh trades never produce contradictory A+ vs F grades
+  const assignGrades = (scores: number[], minScale: number): string[] => {
     const avg = scores.reduce((s, x) => s + x, 0) / Math.max(1, scores.length)
     if (avg <= 0) return scores.map(() => '--')
+    const denom = Math.max(avg, minScale)
     return scores.map((val) => {
-      const ratio = (val - avg) / avg
+      const ratio = (val - avg) / denom
       if (ratio >= 0.45) return 'A+'
       if (ratio >= 0.25) return 'A'
       if (ratio >= 0.13) return 'A-'
@@ -956,8 +958,8 @@ function buildTradeSides(
   const stAvg = stScores.reduce((a, b) => a + b, 0) / Math.max(1, stScores.length)
   const ltAvg = ltScores.reduce((a, b) => a + b, 0) / Math.max(1, ltScores.length)
 
-  const stGrades = assignGrades(stScores)
-  const ltGrades = assignGrades(ltScores)
+  const stGrades = assignGrades(stScores, 55)
+  const ltGrades = assignGrades(ltScores, 1200)
   sides.forEach((s, i) => {
     const onlyPicksOrZeroSt =
       bundle.isDynasty &&
@@ -1174,7 +1176,23 @@ export function analyzeLeagueTrades(
         weeksElapsedInSeason,
       )
 
-      const totalTradeVolume = sides.reduce((sum, s) => sum + s.longTermScore, 0)
+      // Keep letter grades strictly consistent with Even verdicts (never A+ vs F on an Even deal)
+      if (winners.shortTermWinner === 'even') {
+        for (const s of sides) {
+          if (s.shortTermGrade !== 'Rebuild' && s.shortTermGrade !== 'Picks') {
+            s.shortTermGrade = 'B'
+          }
+        }
+      }
+      if (winners.longTermWinner === 'even') {
+        for (const s of sides) {
+          s.longTermGrade = 'B'
+        }
+      }
+
+      const totalTradeVolume = bundle.isDynasty
+        ? sides.reduce((sum, s) => sum + s.longTermScore, 0)
+        : Math.round(sides.reduce((sum, s) => sum + s.shortTermScore, 0) * 10) / 10
 
       analyzed.push({
         id: tx.transaction_id,
