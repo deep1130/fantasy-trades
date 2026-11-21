@@ -17,7 +17,7 @@ import type {
 } from '../types/trades'
 
 const SLEEPER_API = 'https://api.sleeper.app/v1'
-const PLAYERS_STORAGE_KEY = 'fantasy-trades-players-v1'
+const PLAYERS_STORAGE_KEY = 'fantasy-trades-players-v2'
 const PLAYERS_TTL_MS = 24 * 60 * 60 * 1000
 
 let memoryPlayersMap: Map<string, SleeperPlayerLite> | null = null
@@ -301,6 +301,7 @@ export async function fetchSleeperPlayers(signal?: AbortSignal): Promise<Map<str
       position?: string
       team?: string
       age?: number
+      birth_date?: string
     }
   >
 
@@ -317,6 +318,7 @@ export async function fetchSleeperPlayers(signal?: AbortSignal): Promise<Map<str
       position: pos,
       team: p.team || 'FA',
       age: typeof p.age === 'number' ? p.age : null,
+      birthDate: p.birth_date ?? null,
     }
     liteObj[id] = lite
     map.set(id, lite)

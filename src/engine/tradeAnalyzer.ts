@@ -475,6 +475,24 @@ function ordinalRound(round: number): string {
   return `${round}th`
 }
 
+function computeAgeAtTimestamp(
+  player: SleeperPlayerLite | undefined,
+  fallbackCurrentAge: number | null | undefined,
+  timestampMs: number,
+): number | null {
+  if (player?.birthDate && timestampMs > 0) {
+    const dobMs = Date.parse(player.birthDate)
+    if (Number.isFinite(dobMs) && timestampMs > dobMs) {
+      return Math.floor((timestampMs - dobMs) / (365.2425 * 24 * 60 * 60 * 1000))
+    }
+  }
+  const curAge = player?.age ?? fallbackCurrentAge ?? null
+  if (curAge == null) return null
+  if (timestampMs <= 0) return Math.floor(curAge)
+  const yearsAgo = Math.max(0, (Date.now() - timestampMs) / (365.2425 * 24 * 60 * 60 * 1000))
+  return Math.max(18, Math.floor(curAge - yearsAgo))
+}
+
 function getLongTermLongevityMultiplier(
   asset: { kind: string; position?: string; age?: number | null; resolvedFromPick?: string; label: string },
   currentSeasonStr: string,
@@ -613,16 +631,19 @@ function buildTradeSides(
     const dynastyVal = Math.round(rawDynastyVal * scoringMul)
     const redraftVal = Math.round(rawRedraftVal * scoringMul)
 
+    const ageAtTrade = computeAgeAtTimestamp(pLite, valEntry?.age, tx.created)
+    const currentAge = pLite?.age ?? valEntry?.age ?? null
+
     side.received.push({
       kind: 'player',
       id: playerId,
       chainKey: `player:${playerId}`,
       label: pLite?.name ?? valEntry?.name ?? `Player ${playerId}`,
       sublabel: pLite
-        ? `${pLite.position} · ${pLite.team}${pLite.age ? ` · ${pLite.age}y` : ''}`
+        ? `${pLite.position} · ${pLite.team}${ageAtTrade != null ? ` · ${ageAtTrade}y` : ''}`
         : valEntry?.position ?? '',
       position: pos,
-      age: pLite?.age ?? valEntry?.age ?? null,
+      age: currentAge,
       shortTermPts: pts.sameSeasonPts,
       starterPts: pts.sameSeasonStarterPts,
       playoffStarterPts: pts.sameSeasonPlayoffStarterPts,

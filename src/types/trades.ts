@@ -108,6 +108,7 @@ export interface SleeperPlayerLite {
   position: string
   team: string
   age: number | null
+  birthDate?: string | null
 }
 
 export interface NflState {
