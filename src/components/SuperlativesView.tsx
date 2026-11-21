@@ -1,4 +1,4 @@
-import { Flame, Scale, ShieldAlert, Sparkles } from 'lucide-react'
+import { ChevronRight, Flame, Scale, ShieldAlert, Sparkles } from 'lucide-react'
 import type { AnalyzedTrade, TradeSuperlatives } from '../types/trades'
 
 interface SuperlativesViewProps {
@@ -63,7 +63,8 @@ export function SuperlativesView({
         </div>
         <p className="box-desc">
           The most lopsided deals in league history ranked by net{' '}
-          {isDynasty ? 'long-term dynasty value' : 'short-term lineup impact'}.
+          {isDynasty ? 'long-term dynasty value' : 'short-term lineup impact'}. Click any trade to
+          inspect full details.
         </p>
         <div className="robbery-list">
           {topFleeces.length === 0 ? (
@@ -97,6 +98,9 @@ export function SuperlativesView({
                     </span>
                     <span className="robbery-opp">
                       Short-Term Gap: {t.shortTermMargin.toFixed(1)} pts
+                    </span>
+                    <span className="inspect-cue">
+                      View trade <ChevronRight size={11} />
                     </span>
                   </div>
                 </div>
@@ -148,6 +152,9 @@ export function SuperlativesView({
                       </span>
                       <span className="robbery-opp">
                         +{t.longTermMargin.toLocaleString()} Long-Term value
+                      </span>
+                      <span className="inspect-cue">
+                        View trade <ChevronRight size={11} />
                       </span>
                     </div>
                   </div>
@@ -236,6 +243,9 @@ export function SuperlativesView({
                   <div className="robbery-right">
                     <span className="luck-tag pos">
                       {item.asset.dynastyValue.toLocaleString()} val
+                    </span>
+                    <span className="inspect-cue">
+                      View trade <ChevronRight size={11} />
                     </span>
                   </div>
                 </div>

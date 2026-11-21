@@ -11,6 +11,7 @@ import { SuperlativesView } from './components/SuperlativesView'
 import { TopBar } from './components/TopBar'
 import { TradeCalcView } from './components/TradeCalcView'
 import { TradeCard } from './components/TradeCard'
+import { TradeModal } from './components/TradeModal'
 import {
   TradeFilters,
   type OutcomeFilter,
@@ -93,6 +94,7 @@ export default function App() {
     () => params.get('league') || savedSession?.leagueId || '',
   )
   const [highlightedTradeId, setHighlightedTradeId] = useState<string | null>(null)
+  const [modalTradeId, setModalTradeId] = useState<string | null>(null)
   const [view, setView] = useState<ViewTab>(() => {
     const v = params.get('view')
     return v === 'leaderboard' || v === 'partners' || v === 'superlatives' || v === 'calc'
@@ -404,7 +406,17 @@ export default function App() {
     setView('trades')
   }, [])
 
+  const modalTrade = useMemo(
+    () => (modalTradeId ? trades.find((t) => t.id === modalTradeId) ?? null : null),
+    [trades, modalTradeId],
+  )
+
+  const handleInspectTrade = useCallback((tradeId: string) => {
+    setModalTradeId(tradeId)
+  }, [])
+
   const handleJumpToTrade = useCallback((tradeId: string) => {
+    setModalTradeId(null)
     setFocusRosterId(null)
     setPartnerRosterId(null)
     setSeasonFilter('all')
@@ -486,7 +498,7 @@ export default function App() {
         trades={trades}
         focusGm={focusGm}
         superlatives={superlatives}
-        onJumpToTrade={handleJumpToTrade}
+        onJumpToTrade={handleInspectTrade}
       />
 
       <section className="main-board-section">
@@ -649,7 +661,7 @@ export default function App() {
             trades={trades}
             superlatives={superlatives}
             isDynasty={bundle.isDynasty}
-            onJumpToTrade={handleJumpToTrade}
+            onJumpToTrade={handleInspectTrade}
           />
         )}
 
@@ -684,6 +696,18 @@ export default function App() {
       </section>
 
       <MethodologySection />
+
+      {bundle && modalTrade && (
+        <TradeModal
+          trade={modalTrade}
+          leagueName={bundle.currentLeague.name}
+          isDynasty={bundle.isDynasty}
+          focusRosterId={focusRosterId}
+          onClose={() => setModalTradeId(null)}
+          onOpenInFeed={handleJumpToTrade}
+          onFilterAssetChain={handleFilterAssetChain}
+        />
+      )}
 
       <div className="bottom-note">
         UNOFFICIAL DYNASTY &amp; REDRAFT TOOL <span>·</span> LIVE TRADES &amp; SCORING POWERED BY
