@@ -55,20 +55,6 @@ export function TradeCard({
 
   const hasPlayoffHero = trade.sides.some((s) => s.playoffStarterPts >= 35)
   const titleSide = trade.sides.find((s) => s.helpedWinTitle)
-  const primaryTotal =
-    trade.sides.length === 2
-      ? (isDynasty
-          ? trade.sides[0].longTermScore + trade.sides[1].longTermScore
-          : trade.sides[0].shortTermScore + trade.sides[1].shortTermScore)
-      : 0
-  const side0Pct =
-    trade.sides.length === 2 && primaryTotal > 0
-      ? Math.round(
-          ((isDynasty ? trade.sides[0].longTermScore : trade.sides[0].shortTermScore) /
-            primaryTotal) *
-            100,
-        )
-      : 50
 
   const handleCopyReceipt = async () => {
     const when = trade.isOffseason ? `${trade.season} Offseason` : `${trade.season} Wk ${trade.week}`
@@ -271,13 +257,6 @@ export function TradeCard({
           )
         })}
       </div>
-
-      {trade.sides.length === 2 && primaryTotal > 0 && (
-        <div className="card-split-bar" title={`${trade.sides[0].teamName} ${side0Pct}% vs ${trade.sides[1].teamName} ${100 - side0Pct}%`}>
-          <div className="card-split-a" style={{ width: `${side0Pct}%` }} />
-          <div className="card-split-b" style={{ width: `${100 - side0Pct}%` }} />
-        </div>
-      )}
 
       <div className="trade-card-foot">
         <span>

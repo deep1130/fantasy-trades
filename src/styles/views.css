@@ -242,16 +242,6 @@
 .score-chip.winner strong { color: var(--lucky-text); }
 .score-chip.loser { border-color: var(--unlucky-border); color: var(--unlucky-text); background: var(--unlucky-soft); }
 
-/* VALUE SPLIT BAR */
-.card-split-bar {
-  display: flex;
-  height: 3px;
-  width: 100%;
-  background: var(--surface-raised);
-}
-.card-split-a { background: var(--accent); transition: width .2s ease; }
-.card-split-b { background: rgba(255, 255, 255, 0.16); transition: width .2s ease; }
-
 /* TRADE CALCULATOR */
 .calc-wrap { display: flex; flex-direction: column; gap: 16px; }
 .calc-verdict-box {
