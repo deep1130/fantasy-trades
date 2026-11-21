@@ -9,6 +9,7 @@ export interface LeagueScoringProfile {
   rushFdBonus: number
   recFdBonus: number
   passFdBonus: number
+  yardageBonus: number
   bigPlayBonus: number
   startersCount: number
   qbStarters: number
@@ -42,15 +43,23 @@ export function buildLeagueScoringProfile(league: SleeperLeague): LeagueScoringP
   const recFdBonus = Number(s.rec_fd ?? s.first_down ?? 0)
   const passFdBonus = Number(s.pass_fd ?? 0)
 
-  const ydBonuses =
+  const yardageBonus =
     Number(s.bonus_rush_yd_100 ?? 0) +
+    Number(s.bonus_rush_yd_200 ?? 0) +
     Number(s.bonus_rec_yd_100 ?? 0) +
-    Number(s.bonus_pass_yd_300 ?? 0)
+    Number(s.bonus_rec_yd_200 ?? 0) +
+    Number(s.bonus_pass_yd_300 ?? 0) +
+    Number(s.bonus_pass_yd_400 ?? 0)
   const bigPlayBonus =
     Number(s.pass_td_40p ?? 0) +
     Number(s.rush_td_40p ?? 0) +
     Number(s.rec_td_40p ?? 0) +
-    ydBonuses
+    Number(s.pass_td_50p ?? 0) +
+    Number(s.rush_td_50p ?? 0) +
+    Number(s.rec_td_50p ?? 0) +
+    Number(s.bonus_rec_40p ?? 0) +
+    Number(s.bonus_rush_40p ?? 0) +
+    Number(s.bonus_pass_cmp_40p ?? 0)
 
   const activeSlots = positions.filter((p) => p !== 'BN' && p !== 'IR' && p !== 'TAXI')
   const qbSlots = positions.filter((p) => p === 'QB').length
@@ -169,6 +178,7 @@ export function buildLeagueScoringProfile(league: SleeperLeague): LeagueScoringP
   if (rushFdBonus > 0 || recFdBonus > 0) {
     tags.push(`+${Math.max(rushFdBonus, recFdBonus)} 1st Down`)
   }
+  if (yardageBonus > 0) tags.push('Yardage Bonuses')
   if (bigPlayBonus > 0) tags.push('Big-Play Bonuses')
   if (activeSlots.length > 0) tags.push(`Start ${activeSlots.length}`)
 
@@ -192,6 +202,7 @@ export function buildLeagueScoringProfile(league: SleeperLeague): LeagueScoringP
     rushFdBonus,
     recFdBonus,
     passFdBonus,
+    yardageBonus,
     bigPlayBonus,
     startersCount: activeSlots.length || 9,
     qbStarters: qbSlots + sfSlots,
