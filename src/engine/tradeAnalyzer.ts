@@ -475,6 +475,46 @@ function ordinalRound(round: number): string {
   return `${round}th`
 }
 
+function getLongTermLongevityMultiplier(
+  asset: { kind: string; position?: string; age?: number | null; resolvedFromPick?: string; label: string },
+  currentSeasonStr: string,
+): number {
+  // Unresolved future draft picks appreciate toward draft day (don't suffer an age cliff)
+  if (asset.kind === 'pick' && !asset.resolvedFromPick) {
+    const yrMatch = asset.label.match(/^(\d{4})/)
+    const yrOut = yrMatch ? Number(yrMatch[1]) - Number(currentSeasonStr) : 1
+    return yrOut >= 2 ? 1.15 : 1.06
+  }
+
+  // Separate current-season win-now rental hype from 2+ year dynasty longevity for aging veterans
+  const age = asset.age
+  if (age == null || age <= 26) return 1.0
+  switch (asset.position) {
+    case 'RB':
+      if (age >= 30) return 0.48
+      if (age >= 29) return 0.54
+      if (age >= 28) return 0.72
+      if (age >= 27) return 0.86
+      return 1.0
+    case 'WR':
+      if (age >= 31) return 0.62
+      if (age >= 30) return 0.76
+      if (age >= 29) return 0.88
+      return 1.0
+    case 'TE':
+      if (age >= 31) return 0.66
+      if (age >= 30) return 0.8
+      if (age >= 29) return 0.9
+      return 1.0
+    case 'QB':
+      if (age >= 35) return 0.68
+      if (age >= 33) return 0.84
+      return 1.0
+    default:
+      return 1.0
+  }
+}
+
 function buildTradeSides(
   tx: SleeperTransaction,
   snap: SeasonSnapshot,
@@ -796,21 +836,27 @@ function buildTradeSides(
     })
 
     // Long-Term Package-Adjusted Dynasty Score
-    // Discounts low-value bench/depth throw-ins in 3-for-1 / 4-for-1 packages,
-    // while preserving value on premium assets (>=2200 val) and Round 1 draft picks
-    const ltAssets = [...side.received].sort(
-      (a, b) =>
-        b.dynastyValue + b.multiSeasonPar * 14 - (a.dynastyValue + a.multiSeasonPar * 14),
-    )
+    // Separates win-now rental hype from 2+ year longevity (age-cliff decay on aging vets,
+    // horizon appreciation on future picks) + discounts low-value bench throw-ins
+    const ltAssets = [...side.received].sort((a, b) => {
+      const aLt = a.dynastyValue * getLongTermLongevityMultiplier(a, currentSeasonStr) + a.multiSeasonPar * 14
+      const bLt = b.dynastyValue * getLongTermLongevityMultiplier(b, currentSeasonStr) + b.multiSeasonPar * 14
+      return bLt - aLt
+    })
 
     let pkgDynastyValue = 0
     let parBonus = 0
     ltAssets.forEach((asset, idx) => {
+      const longevityMul = bundle.isDynasty
+        ? getLongTermLongevityMultiplier(asset, currentSeasonStr)
+        : 1.0
+      const horizonVal = asset.dynastyValue * longevityMul
+
       let slotWeight = 1.0
       if (idx >= minAssetCount) {
         const isFirstRoundPick =
           asset.kind === 'pick' && (asset.label.includes(' 1st') || asset.label.includes(' 1.'))
-        const isPremiumAsset = asset.dynastyValue >= 2200 || isFirstRoundPick
+        const isPremiumAsset = horizonVal >= 2200 || isFirstRoundPick
         if (isPremiumAsset) {
           slotWeight = 0.94
         } else {
@@ -818,7 +864,7 @@ function buildTradeSides(
             longExtraSlotDecay[Math.min(longExtraSlotDecay.length - 1, idx - minAssetCount)]
         }
       }
-      pkgDynastyValue += asset.dynastyValue * slotWeight
+      pkgDynastyValue += horizonVal * slotWeight
       parBonus += Math.min(3200, asset.multiSeasonPar * 14) * slotWeight
     })
 
@@ -892,7 +938,12 @@ function buildTradeSides(
   const stGrades = assignGrades(stScores)
   const ltGrades = assignGrades(ltScores)
   sides.forEach((s, i) => {
-    s.shortTermGrade = stGrades[i]
+    const onlyFuturePicks =
+      bundle.isDynasty &&
+      s.shortTermScore === 0 &&
+      s.received.every((a) => (a.kind === 'pick' && !a.resolvedFromPick) || a.kind === 'faab')
+    s.shortTermGrade =
+      onlyFuturePicks && s.windowTier === 'Rebuilder' ? 'Picks' : stGrades[i]
     s.longTermGrade = ltGrades[i]
     const stRatio = stAvg > 0 ? (s.shortTermScore - stAvg) / stAvg : 0
     const ltRatio = ltAvg > 0 ? (s.longTermScore - ltAvg) / ltAvg : 0
@@ -940,7 +991,7 @@ function classifyWinners(
   }
 
   const longGap = byLong[0].longTermScore - byLong[1].longTermScore
-  const longDeadzone = Math.max(300, byLong[0].longTermScore * 0.075)
+  const longDeadzone = Math.max(160, byLong[0].longTermScore * 0.075)
 
   let longTermWinner: TradeWinnerSide = 'even'
   if (longGap > longDeadzone) {
