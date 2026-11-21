@@ -81,9 +81,18 @@ export function TradeCard({ trade, isDynasty, focusRosterId }: TradeCardProps) {
             >
               <div className="side-header">
                 <div className="side-team-wrap">
-                  <div className="team-avatar-fallback">
-                    {side.teamName.slice(0, 1).toUpperCase()}
-                  </div>
+                  {side.avatarUrl ? (
+                    <img
+                      src={side.avatarUrl}
+                      alt={side.teamName}
+                      className="team-avatar"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="team-avatar-fallback">
+                      {side.teamName.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <div className="side-team">
                       <span>{side.teamName}</span>
@@ -128,11 +137,11 @@ export function TradeCard({ trade, isDynasty, focusRosterId }: TradeCardProps) {
                         </span>
                         <span>{asset.label}</span>
                       </div>
-                      {asset.sublabel && (
+                      {(asset.sublabel || (asset.leaguePpg && asset.leaguePpg > 0)) && (
                         <div className="asset-sub">
                           {asset.sublabel}
                           {asset.leaguePpg && asset.leaguePpg > 0
-                            ? ` · ${asset.leaguePpg.toFixed(1)} PPG`
+                            ? `${asset.sublabel ? ' · ' : ''}${asset.leaguePpg.toFixed(1)} PPG`
                             : ''}
                           {asset.resolvedFromPick ? ` · Was ${asset.resolvedFromPick}` : ''}
                         </div>

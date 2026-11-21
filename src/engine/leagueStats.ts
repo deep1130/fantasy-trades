@@ -39,11 +39,18 @@ export function computeLeagueStats(
     const u = r.owner_id ? userMap.get(r.owner_id) : undefined
     const handle = u?.display_name || `Team ${r.roster_id}`
     const teamName = u?.metadata?.team_name?.trim() || handle
+    const avatarUrl =
+      u?.metadata?.avatar && u.metadata.avatar.startsWith('http')
+        ? u.metadata.avatar
+        : u?.avatar
+          ? `https://sleepercdn.com/avatars/thumbs/${u.avatar}`
+          : null
     gmMap.set(r.roster_id, {
       rosterId: r.roster_id,
       ownerId: r.owner_id,
       teamName,
       ownerHandle: handle,
+      avatarUrl,
       tradeCount: 0,
       shortWins: 0,
       shortLosses: 0,

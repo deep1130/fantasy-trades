@@ -195,6 +195,7 @@ export interface TradeSide {
   ownerId: string | null
   teamName: string
   ownerHandle: string
+  avatarUrl: string | null
   received: TradedAsset[]
   shortTermScore: number
   shortTermPts: number
@@ -246,6 +247,7 @@ export interface GmTradeSummary {
   ownerId: string | null
   teamName: string
   ownerHandle: string
+  avatarUrl: string | null
   tradeCount: number
   shortWins: number
   shortLosses: number

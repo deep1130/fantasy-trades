@@ -20,6 +20,17 @@ interface RosterIdentity {
   ownerId: string | null
   teamName: string
   ownerHandle: string
+  avatarUrl: string | null
+}
+
+function getAvatarUrl(avatar?: string | null, metaAvatar?: string | null): string | null {
+  if (metaAvatar && metaAvatar.startsWith('http')) return metaAvatar
+  if (avatar) {
+    return avatar.startsWith('http')
+      ? avatar
+      : `https://sleepercdn.com/avatars/thumbs/${avatar}`
+  }
+  return null
 }
 
 function buildIdentityMap(snapshot: SeasonSnapshot): Map<number, RosterIdentity> {
@@ -35,6 +46,7 @@ function buildIdentityMap(snapshot: SeasonSnapshot): Map<number, RosterIdentity>
       ownerId: r.owner_id,
       teamName,
       ownerHandle: handle,
+      avatarUrl: getAvatarUrl(user?.avatar, user?.metadata?.avatar),
     })
   }
   return map
@@ -133,6 +145,39 @@ function getReplacementPpg(position: string | undefined, bundle: LeagueHistoryBu
   }
 }
 
+function buildSeasonPpgLookup(
+  bundle: LeagueHistoryBundle,
+): Map<string, { ppg: number; games: number }> {
+  // Compute true unweighted League PPG per player from the latest/trade seasons' matchups
+  const totals = new Map<string, { pts: number; games: number }>()
+  for (const snap of bundle.seasons) {
+    for (let w = 1; w <= 18; w += 1) {
+      const matchups = snap.matchupsByWeek[w]
+      if (!matchups) continue
+      const seenThisWeek = new Set<string>()
+      for (const m of matchups) {
+        if (!m.players_points) continue
+        for (const [pid, val] of Object.entries(m.players_points)) {
+          if (seenThisWeek.has(pid) || typeof val !== 'number' || val <= 0) continue
+          seenThisWeek.add(pid)
+          const prev = totals.get(pid) ?? { pts: 0, games: 0 }
+          prev.pts += val
+          prev.games += 1
+          totals.set(pid, prev)
+        }
+      }
+    }
+  }
+
+  const out = new Map<string, { ppg: number; games: number }>()
+  for (const [pid, { pts, games }] of totals.entries()) {
+    if (games > 0) {
+      out.set(pid, { ppg: Math.round((pts / games) * 10) / 10, games })
+    }
+  }
+  return out
+}
+
 function computePlayerPointsFromTrade(
   playerId: string,
   position: string | undefined,
@@ -141,6 +186,7 @@ function computePlayerPointsFromTrade(
   tradeWeek: number,
   txCreatedMs: number,
   bundle: LeagueHistoryBundle,
+  seasonPpgLookup: Map<string, { ppg: number; games: number }>,
 ): {
   sameSeasonPts: number
   sameSeasonStarterPts: number
@@ -156,6 +202,7 @@ function computePlayerPointsFromTrade(
   let sameSeasonPar = 0
   let multiSeasonPts = 0
   let multiSeasonPar = 0
+  let rawUnweightedMultiPts = 0
   let weeksPlayedSameSeason = 0
   let activeGamesMultiSeason = 0
 
@@ -204,11 +251,16 @@ function computePlayerPointsFromTrade(
       // Full credit while on receiving roster; 40% residual credit if later flipped/dropped
       const ownershipWeight = onReceivingRoster ? 1.0 : 0.4
       const creditedPts = pts * ownershipWeight
-      const weekPar = Math.max(0, pts - repPpg) * (inReceivingStarters ? 1.0 : onReceivingRoster ? 0.65 : 0.35)
+      const weekPar =
+        Math.max(0, pts - repPpg) *
+        (inReceivingStarters ? 1.0 : onReceivingRoster ? 0.65 : 0.35)
 
       multiSeasonPts += creditedPts
       multiSeasonPar += weekPar
-      if (pts > 0) activeGamesMultiSeason += 1
+      if (pts > 0) {
+        rawUnweightedMultiPts += pts
+        activeGamesMultiSeason += 1
+      }
 
       if (isSameSeason) {
         sameSeasonPts += creditedPts
@@ -221,10 +273,14 @@ function computePlayerPointsFromTrade(
     }
   }
 
+  // Use true unweighted post-trade PPG if games were played, else fall back to full-season League PPG
+  const fallbackSeason = seasonPpgLookup.get(playerId)
   const leaguePpg =
     activeGamesMultiSeason > 0
-      ? Math.round((multiSeasonPts / activeGamesMultiSeason) * 10) / 10
-      : 0
+      ? Math.round((rawUnweightedMultiPts / activeGamesMultiSeason) * 10) / 10
+      : fallbackSeason?.ppg ?? 0
+  const effectiveGames =
+    activeGamesMultiSeason > 0 ? activeGamesMultiSeason : fallbackSeason?.games ?? 0
 
   return {
     sameSeasonPts: Math.round(sameSeasonPts * 10) / 10,
@@ -233,7 +289,7 @@ function computePlayerPointsFromTrade(
     multiSeasonPts: Math.round(multiSeasonPts * 10) / 10,
     multiSeasonPar: Math.round(multiSeasonPar * 10) / 10,
     weeksPlayedSameSeason,
-    activeGamesMultiSeason,
+    activeGamesMultiSeason: effectiveGames,
     leaguePpg,
   }
 }
@@ -284,6 +340,7 @@ function buildTradeSides(
   currentIdentities: Map<number, RosterIdentity>,
   seasonIdentities: Map<number, RosterIdentity>,
   pickTiers: Map<number, 'Early' | 'Mid' | 'Late'>,
+  seasonPpgLookup: Map<string, { ppg: number; games: number }>,
 ): TradeSide[] {
   const currentSeasonStr = bundle.currentLeague.season
   const sideMap = new Map<number, TradeSide>()
@@ -304,6 +361,7 @@ function buildTradeSides(
       ownerId: idInfo?.ownerId ?? null,
       teamName: idInfo?.teamName ?? `Team ${rId}`,
       ownerHandle: idInfo?.ownerHandle ?? `Team ${rId}`,
+      avatarUrl: idInfo?.avatarUrl ?? null,
       received: [],
       shortTermScore: 0,
       shortTermPts: 0,
@@ -332,6 +390,7 @@ function buildTradeSides(
       tx.leg || 1,
       tx.created,
       bundle,
+      seasonPpgLookup,
     )
 
     const scoringMul = getLeagueScoringMultiplier(
@@ -407,6 +466,7 @@ function buildTradeSides(
         1,
         0,
         bundle,
+        seasonPpgLookup,
       )
 
       const scoringMul = getLeagueScoringMultiplier(
@@ -722,6 +782,7 @@ export function analyzeLeagueTrades(
 
   const currentIdentities = buildIdentityMap(latestSnap)
   const pickTiers = computeTierByRoster(latestSnap.rosters)
+  const seasonPpgLookup = buildSeasonPpgLookup(bundle)
   const analyzed: AnalyzedTrade[] = []
 
   for (const snap of bundle.seasons) {
@@ -739,6 +800,7 @@ export function analyzeLeagueTrades(
         currentIdentities,
         seasonIdentities,
         pickTiers,
+        seasonPpgLookup,
       )
       if (sides.length < 2) continue
 

@@ -5,6 +5,7 @@ import { fetchSleeperPlayers, fetchUserLeagues, loadLeagueHistory } from './api/
 import { HeroInput } from './components/HeroInput'
 import { KpiStrip } from './components/KpiStrip'
 import { LeaderboardView } from './components/LeaderboardView'
+import { MethodologySection } from './components/MethodologySection'
 import { PartnerMatrixView } from './components/PartnerMatrixView'
 import { SuperlativesView } from './components/SuperlativesView'
 import { TopBar } from './components/TopBar'
@@ -399,95 +400,118 @@ export default function App() {
           </div>
         </div>
 
-        {!bundle ? (
-          <div className="empty-state">
-            <ArrowLeftRight size={24} style={{ opacity: 0.6 }} />
-            <h3>Connect a Sleeper League or @Username</h3>
+        {view === 'leaderboard' && (
+          <LeaderboardView
+            gms={gmSummaries}
+            isDynasty={bundle?.isDynasty ?? true}
+            focusRosterId={focusRosterId}
+            busy={busy}
+            hasLeague={Boolean(bundle)}
+            onSelectManager={(rosterId) => {
+              setFocusRosterId(rosterId)
+              setPartnerRosterId(null)
+              setView('trades')
+            }}
+          />
+        )}
+
+        {view !== 'leaderboard' && !bundle ? (
+          <div className="empty-card">
             <p>
-              Paste any Sleeper league ID or @username above to grade every trade by short-term
-              lineup impact and long-term dynasty value.
+              Enter any public Sleeper League ID or @username above to grade every trade by
+              short-term lineup impact and long-term dynasty value.
             </p>
           </div>
-        ) : (
-          <>
-            {view === 'trades' && (
-              <div>
-                <TradeFilters
-                  isDynasty={bundle.isDynasty}
-                  gms={gmSummaries}
-                  focusRosterId={focusRosterId}
-                  onChangeFocusRoster={setFocusRosterId}
-                  partnerRosterId={partnerRosterId}
-                  onChangePartnerRoster={setPartnerRosterId}
-                  seasonFilter={seasonFilter}
-                  onChangeSeasonFilter={setSeasonFilter}
-                  availableSeasons={availableSeasons}
-                  outcomeFilter={outcomeFilter}
-                  onChangeOutcomeFilter={setOutcomeFilter}
-                  searchQuery={searchQuery}
-                  onChangeSearchQuery={setSearchQuery}
-                  partnerRecord={partnerRecord}
-                  filteredCount={filteredTrades.length}
-                />
+        ) : null}
 
-                {filteredTrades.length === 0 ? (
-                  <div className="empty-state">
-                    <h3>No matching trades</h3>
-                    <p>Try clearing a partner, season, or verdict filter above.</p>
-                  </div>
-                ) : (
-                  <div className="trades-list">
-                    {filteredTrades.map((trade) => (
-                      <TradeCard
-                        key={trade.id}
-                        trade={trade}
-                        isDynasty={bundle.isDynasty}
-                        focusRosterId={focusRosterId}
-                      />
-                    ))}
-                  </div>
-                )}
+        {bundle && view === 'trades' && (
+          <div>
+            <TradeFilters
+              isDynasty={bundle.isDynasty}
+              gms={gmSummaries}
+              partnerPairs={partnerPairs}
+              focusRosterId={focusRosterId}
+              onChangeFocusRoster={setFocusRosterId}
+              partnerRosterId={partnerRosterId}
+              onChangePartnerRoster={setPartnerRosterId}
+              seasonFilter={seasonFilter}
+              onChangeSeasonFilter={setSeasonFilter}
+              availableSeasons={availableSeasons}
+              outcomeFilter={outcomeFilter}
+              onChangeOutcomeFilter={setOutcomeFilter}
+              searchQuery={searchQuery}
+              onChangeSearchQuery={setSearchQuery}
+              partnerRecord={partnerRecord}
+              filteredCount={filteredTrades.length}
+            />
+
+            {filteredTrades.length === 0 ? (
+              <div className="empty-card">
+                <p>No matching trades found. Try clearing a partner, season, or verdict filter.</p>
+              </div>
+            ) : (
+              <div className="trades-list">
+                {filteredTrades.map((trade) => (
+                  <TradeCard
+                    key={trade.id}
+                    trade={trade}
+                    isDynasty={bundle.isDynasty}
+                    focusRosterId={focusRosterId}
+                  />
+                ))}
               </div>
             )}
-
-            {view === 'leaderboard' && (
-              <LeaderboardView
-                gms={gmSummaries}
-                isDynasty={bundle.isDynasty}
-                focusRosterId={focusRosterId}
-                onSelectManager={(rosterId) => {
-                  setFocusRosterId(rosterId)
-                  setPartnerRosterId(null)
-                  setView('trades')
-                }}
-              />
-            )}
-
-            {view === 'partners' && (
-              <PartnerMatrixView
-                pairs={partnerPairs}
-                gms={gmSummaries}
-                isDynasty={bundle.isDynasty}
-                focusRosterId={focusRosterId}
-                onInspectPair={(rA, rB) => {
-                  setFocusRosterId(rA)
-                  setPartnerRosterId(rB)
-                  setView('trades')
-                }}
-              />
-            )}
-
-            {view === 'superlatives' && (
-              <SuperlativesView superlatives={superlatives} isDynasty={bundle.isDynasty} />
-            )}
-          </>
+          </div>
         )}
+
+        {bundle && view === 'partners' && (
+          <PartnerMatrixView
+            pairs={partnerPairs}
+            gms={gmSummaries}
+            isDynasty={bundle.isDynasty}
+            focusRosterId={focusRosterId}
+            onInspectPair={(rA, rB) => {
+              setFocusRosterId(rA)
+              setPartnerRosterId(rB)
+              setView('trades')
+            }}
+          />
+        )}
+
+        {bundle && view === 'superlatives' && (
+          <SuperlativesView
+            trades={trades}
+            superlatives={superlatives}
+            isDynasty={bundle.isDynasty}
+          />
+        )}
+
+        <footer className="table-footer">
+          <div className="legend">
+            <span>
+              <i className="legend-dot green-dot" /> TRADE WINNER / POSITIVE VALUE
+            </span>
+            <span>
+              <i className="legend-dot red-dot" /> LOST VALUE / FLEECED
+            </span>
+            <span>
+              <i className="legend-dot amber-dot" /> WIN-WIN (CONTENDER vs REBUILDER)
+            </span>
+          </div>
+          <span className="simulation-note">
+            {bundle
+              ? `${bundle.currentLeague.total_rosters} TEAMS · ${trades.length} TRADES ANALYZED · SLEEPER API`
+              : 'ENTER LEAGUE ID OR @USERNAME TO BEGIN'}
+          </span>
+        </footer>
       </section>
 
-      <p className="bottom-note">
-        FANTASY TRADES <span>·</span> SLEEPER API + LIVE DYNASTY VALUES <span>·</span> SHORT-TERM =
-        LINEUP IMPACT PTS <span>·</span> LONG-TERM = PACKAGE-ADJUSTED DYNASTY VALUE + PAR
-      </p>
+      <MethodologySection />
+
+      <div className="bottom-note">
+        UNOFFICIAL DYNASTY &amp; REDRAFT TOOL <span>·</span> LIVE TRADES &amp; SCORING POWERED BY
+        SLEEPER API
+      </div>
     </main>
   )
 }
