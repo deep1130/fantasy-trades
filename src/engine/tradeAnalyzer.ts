@@ -492,7 +492,8 @@ function buildTradeSides(
   const seasonKickoffMs = new Date(Number(snap.league.season), 8, 1).getTime()
   const isOffseasonTx =
     (tx.leg || 1) <= 1 && (snap.lastScoredWeek === 0 || tx.created < seasonKickoffMs)
-  const windowMap = classifyTeamWindowsAtWeek(snap, tx.leg || 1, isOffseasonTx, valueMap)
+  const prevSnap = seasonsByYear.get(String(Number(snap.league.season) - 1))
+  const windowMap = classifyTeamWindowsAtWeek(snap, tx.leg || 1, isOffseasonTx, valueMap, prevSnap)
 
   const rosterIds = Array.from(
     new Set([

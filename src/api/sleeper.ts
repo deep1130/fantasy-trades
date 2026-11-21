@@ -79,7 +79,7 @@ export async function fetchUserLeagues(
     )
   }
 
-  const leagues: UserLeagueSummary[] = (rawLeagues ?? []).map((lg) => ({
+  let leagues: UserLeagueSummary[] = (rawLeagues ?? []).map((lg) => ({
     league_id: lg.league_id,
     name: lg.name,
     season: lg.season,
@@ -88,6 +88,14 @@ export async function fetchUserLeagues(
     isDynasty: detectIsDynasty(lg),
     isSuperflex: detectIsSuperflex(lg),
   }))
+
+  // Remove redraft/keeper leagues that aren't running (pre_draft) when active leagues exist
+  const activeOrDynasty = leagues.filter(
+    (lg) => lg.isDynasty || (lg.status !== 'pre_draft' && lg.status !== 'drafting'),
+  )
+  if (activeOrDynasty.length > 0) {
+    leagues = activeOrDynasty
+  }
 
   // Sort active (in_season / complete) leagues first, then dynasty, then name
   const statusRank = (status: string) =>

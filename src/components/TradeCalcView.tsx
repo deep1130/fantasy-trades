@@ -93,13 +93,15 @@ export function TradeCalcView({
 
   const teamWindows = useMemo(() => {
     if (!latest) return new Map()
+    const prevSnap = bundle.seasons[1]
     return classifyTeamWindowsAtWeek(
       latest,
       Math.max(4, (latest.lastScoredWeek || 0) + 1),
       latest.lastScoredWeek === 0,
       valueMap,
+      prevSnap,
     )
-  }, [latest, valueMap])
+  }, [latest, bundle.seasons, valueMap])
 
   // Compute MaxPF pick tiers for current league rosters
   const pickTiers = useMemo(() => {
