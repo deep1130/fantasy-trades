@@ -11,9 +11,16 @@ interface KpiStripProps {
   trades: AnalyzedTrade[]
   focusGm: GmTradeSummary | null
   superlatives: TradeSuperlatives
+  onJumpToTrade: (tradeId: string) => void
 }
 
-export function KpiStrip({ bundle, trades, focusGm, superlatives }: KpiStripProps) {
+export function KpiStrip({
+  bundle,
+  trades,
+  focusGm,
+  superlatives,
+  onJumpToTrade,
+}: KpiStripProps) {
   const seasonsLoaded = bundle ? bundle.seasons.map((s) => s.league.season).join(', ') : null
   const scoringTags = bundle ? bundle.scoringProfile.tags.join(' · ') : '--'
   const posNotes = bundle
@@ -102,7 +109,21 @@ export function KpiStrip({ bundle, trades, focusGm, superlatives }: KpiStripProp
         </span>
       </div>
 
-      <div className="summary-item">
+      <div
+        className={`summary-item ${superlatives.biggestFleece ? 'summary-item-clickable' : ''}`}
+        onClick={() => {
+          if (superlatives.biggestFleece) onJumpToTrade(superlatives.biggestFleece.id)
+        }}
+        role={superlatives.biggestFleece ? 'button' : undefined}
+        tabIndex={superlatives.biggestFleece ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (superlatives.biggestFleece && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            onJumpToTrade(superlatives.biggestFleece.id)
+          }
+        }}
+        title={superlatives.biggestFleece ? 'Click to jump directly to this trade' : undefined}
+      >
         <span className="summary-label">
           <Sparkles size={11} style={{ marginRight: 4, color: 'var(--accent-text)' }} />
           BIGGEST FLEECE
@@ -118,7 +139,7 @@ export function KpiStrip({ bundle, trades, focusGm, superlatives }: KpiStripProp
         </strong>
         <span className="summary-note">
           {superlatives.biggestFleece
-            ? `${superlatives.biggestFleece.season} Wk ${superlatives.biggestFleece.week} · Δ ${superlatives.biggestFleece.longTermMargin.toLocaleString()} val / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts`
+            ? `${superlatives.biggestFleece.season} Wk ${superlatives.biggestFleece.week} · Δ ${superlatives.biggestFleece.longTermMargin.toLocaleString()} val / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts · View trade →`
             : 'Most lopsided deal in league history'}
         </span>
       </div>

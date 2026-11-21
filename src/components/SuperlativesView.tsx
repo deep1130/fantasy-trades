@@ -5,9 +5,15 @@ interface SuperlativesViewProps {
   trades: AnalyzedTrade[]
   superlatives: TradeSuperlatives
   isDynasty: boolean
+  onJumpToTrade: (tradeId: string) => void
 }
 
-export function SuperlativesView({ trades, superlatives, isDynasty }: SuperlativesViewProps) {
+export function SuperlativesView({
+  trades,
+  superlatives,
+  isDynasty,
+  onJumpToTrade,
+}: SuperlativesViewProps) {
   const topFleeces = [...trades]
     .sort((a, b) =>
       isDynasty ? b.longTermMargin - a.longTermMargin : b.shortTermMargin - a.shortTermMargin,
@@ -51,7 +57,12 @@ export function SuperlativesView({ trades, superlatives, isDynasty }: Superlativ
               const winner = t.sides.find((s) => s.rosterId === winId) ?? t.sides[0]
               const loser = t.sides.find((s) => s.rosterId !== winner.rosterId) ?? t.sides[1]
               return (
-                <div key={t.id} className="robbery-item lucky-escape">
+                <div
+                  key={t.id}
+                  className="robbery-item lucky-escape clickable-item"
+                  onClick={() => onJumpToTrade(t.id)}
+                  title="Click to open this trade"
+                >
                   <div className="robbery-left">
                     <span className="robbery-week">
                       {t.season} · WEEK {t.week}
@@ -95,7 +106,12 @@ export function SuperlativesView({ trades, superlatives, isDynasty }: Superlativ
                 const stWin = t.sides.find((s) => s.rosterId === t.shortTermWinner)
                 const ltWin = t.sides.find((s) => s.rosterId === t.longTermWinner)
                 return (
-                  <div key={t.id} className="robbery-item split-deal">
+                  <div
+                    key={t.id}
+                    className="robbery-item split-deal clickable-item"
+                    onClick={() => onJumpToTrade(t.id)}
+                    title="Click to open this trade"
+                  >
                     <div className="robbery-left">
                       <span className="robbery-week">
                         {t.season} · WEEK {t.week}
@@ -183,7 +199,9 @@ export function SuperlativesView({ trades, superlatives, isDynasty }: Superlativ
               resolvedPickHits.map((item) => (
                 <div
                   key={`${item.trade.id}-${item.asset.id}`}
-                  className="robbery-item lucky-escape"
+                  className="robbery-item lucky-escape clickable-item"
+                  onClick={() => onJumpToTrade(item.trade.id)}
+                  title="Click to open this trade"
                 >
                   <div className="robbery-left">
                     <span className="robbery-week">

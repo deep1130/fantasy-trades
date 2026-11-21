@@ -182,6 +182,25 @@
   transition: border-color .15s ease;
 }
 .trade-card:hover { border-color: rgba(255, 255, 255, 0.18); }
+.trade-card-highlighted {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.summary-item-clickable {
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.summary-item-clickable:hover {
+  background: var(--surface-raised);
+}
+.clickable-item {
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.clickable-item:hover {
+  background: var(--control);
+  border-color: rgba(255, 255, 255, 0.2);
+}
 .trade-card-head {
   display: flex;
   align-items: center;

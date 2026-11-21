@@ -31,6 +31,32 @@ interface RecentLeague {
 }
 
 const RECENT_KEY = 'fantasy-trades-recent-leagues-v1'
+const LAST_SESSION_KEY = 'fantasy-trades-last-session-v1'
+
+interface LastSession {
+  input: string
+  leagueId?: string
+  username?: string
+}
+
+function readLastSession(): LastSession | null {
+  try {
+    const raw = window.localStorage.getItem(LAST_SESSION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as LastSession
+    return parsed && typeof parsed.input === 'string' && parsed.input.trim() ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeLastSession(session: LastSession) {
+  try {
+    window.localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(session))
+  } catch {
+    // Ignore storage quota errors
+  }
+}
 
 function readRecentLeagues(): RecentLeague[] {
   try {
@@ -52,10 +78,15 @@ function writeRecentLeagues(items: RecentLeague[]) {
 
 export default function App() {
   const params = useMemo(() => new URLSearchParams(window.location.search), [])
+  const savedSession = useMemo(() => readLastSession(), [])
+
   const [inputValue, setInputValue] = useState(
-    () => params.get('league') || params.get('user') || '',
+    () => params.get('league') || params.get('user') || savedSession?.input || '',
   )
-  const [activeLeagueId, setActiveLeagueId] = useState(() => params.get('league') || '')
+  const [activeLeagueId, setActiveLeagueId] = useState(
+    () => params.get('league') || savedSession?.leagueId || '',
+  )
+  const [highlightedTradeId, setHighlightedTradeId] = useState<string | null>(null)
   const [view, setView] = useState<ViewTab>(() => {
     const v = params.get('view')
     return v === 'leaderboard' || v === 'partners' || v === 'superlatives' ? v : 'trades'
@@ -91,7 +122,12 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null)
 
   const loadByLeagueId = useCallback(
-    async (leagueId: string, historyOn: boolean, autoFocusOwnerId?: string | null) => {
+    async (
+      leagueId: string,
+      historyOn: boolean,
+      autoFocusOwnerId?: string | null,
+      saveSessionMeta?: { input: string; username?: string },
+    ) => {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
@@ -139,6 +175,12 @@ export default function App() {
           writeRecentLeagues(next)
           return next
         })
+
+        writeLastSession({
+          input: saveSessionMeta?.input ?? resolvedUserLabel ?? leagueId,
+          leagueId,
+          username: saveSessionMeta?.username ?? resolvedUserLabel ?? undefined,
+        })
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to load league trades.')
@@ -146,7 +188,42 @@ export default function App() {
         setBusy(false)
       }
     },
-    [resolvedUserId],
+    [resolvedUserId, resolvedUserLabel],
+  )
+
+  const loadByUsername = useCallback(
+    async (rawUsername: string, historyOn: boolean, preferredLeagueId?: string) => {
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+      setBusy(true)
+      setError(null)
+      try {
+        const userResult = await fetchUserLeagues(rawUsername, controller.signal)
+        setResolvedUserId(userResult.userId)
+        setResolvedUserLabel(userResult.displayName)
+        setUserLeagues(userResult.leagues)
+
+        if (userResult.leagues.length === 0) {
+          throw new Error(`No NFL leagues found for @${userResult.displayName}.`)
+        }
+        setPartnerRosterId(null)
+        const targetLeague =
+          (preferredLeagueId &&
+            userResult.leagues.find((l) => l.league_id === preferredLeagueId)?.league_id) ||
+          userResult.leagues[0].league_id
+
+        await loadByLeagueId(targetLeague, historyOn, userResult.userId, {
+          input: rawUsername,
+          username: userResult.displayName,
+        })
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setError(err instanceof Error ? err.message : 'Unable to find Sleeper user.')
+        setBusy(false)
+      }
+    },
+    [loadByLeagueId],
   )
 
   const handleSubmit = useCallback(async () => {
@@ -160,40 +237,34 @@ export default function App() {
       setResolvedUserLabel(null)
       setFocusRosterId(null)
       setPartnerRosterId(null)
-      await loadByLeagueId(raw, includeHistory, null)
+      await loadByLeagueId(raw, includeHistory, null, { input: raw })
       return
     }
 
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    setBusy(true)
-    setError(null)
-    try {
-      const userResult = await fetchUserLeagues(raw, controller.signal)
-      setResolvedUserId(userResult.userId)
-      setResolvedUserLabel(userResult.displayName)
-      setUserLeagues(userResult.leagues)
-
-      if (userResult.leagues.length === 0) {
-        throw new Error(`No NFL leagues found for @${userResult.displayName}.`)
-      }
-      setPartnerRosterId(null)
-      await loadByLeagueId(userResult.leagues[0].league_id, includeHistory, userResult.userId)
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
-      setError(err instanceof Error ? err.message : 'Unable to find Sleeper user.')
-      setBusy(false)
-    }
-  }, [inputValue, includeHistory, loadByLeagueId])
+    await loadByUsername(raw, includeHistory)
+  }, [inputValue, includeHistory, loadByLeagueId, loadByUsername])
 
   useEffect(() => {
     const initLeague = params.get('league')
     const initUser = params.get('user')
     if (initLeague && /^\d+$/.test(initLeague)) {
-      void loadByLeagueId(initLeague, true, null)
+      void loadByLeagueId(initLeague, true, null, { input: initLeague })
     } else if (initUser) {
-      void handleSubmit()
+      void loadByUsername(initUser, true)
+    } else if (savedSession) {
+      if (savedSession.username) {
+        void loadByUsername(savedSession.username, true, savedSession.leagueId)
+      } else if (savedSession.leagueId && /^\d+$/.test(savedSession.leagueId)) {
+        void loadByLeagueId(savedSession.leagueId, true, null, { input: savedSession.leagueId })
+      } else if (savedSession.input) {
+        if (/^\d{8,}$/.test(savedSession.input.trim())) {
+          void loadByLeagueId(savedSession.input.trim(), true, null, {
+            input: savedSession.input.trim(),
+          })
+        } else {
+          void loadByUsername(savedSession.input.trim(), true)
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -277,6 +348,23 @@ export default function App() {
     })
   }, [trades, seasonFilter, focusRosterId, partnerRosterId, outcomeFilter, searchQuery])
 
+  const handleJumpToTrade = useCallback((tradeId: string) => {
+    setFocusRosterId(null)
+    setPartnerRosterId(null)
+    setSeasonFilter('all')
+    setOutcomeFilter('all')
+    setSearchQuery('')
+    setView('trades')
+    setHighlightedTradeId(tradeId)
+
+    window.setTimeout(() => {
+      const el = document.getElementById(`trade-${tradeId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 80)
+  }, [])
+
   const handleShare = async () => {
     if (!activeLeagueId) return
     const url = new URL(window.location.href)
@@ -341,6 +429,7 @@ export default function App() {
         trades={trades}
         focusGm={focusGm}
         superlatives={superlatives}
+        onJumpToTrade={handleJumpToTrade}
       />
 
       <section className="main-board-section">
@@ -457,6 +546,7 @@ export default function App() {
                     trade={trade}
                     isDynasty={bundle.isDynasty}
                     focusRosterId={focusRosterId}
+                    highlighted={highlightedTradeId === trade.id}
                   />
                 ))}
               </div>
@@ -483,6 +573,7 @@ export default function App() {
             trades={trades}
             superlatives={superlatives}
             isDynasty={bundle.isDynasty}
+            onJumpToTrade={handleJumpToTrade}
           />
         )}
 

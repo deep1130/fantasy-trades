@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { getFocusOutcome } from '../engine/tradeAnalyzer'
 import type { AnalyzedTrade, TradeSide } from '../types/trades'
@@ -7,6 +7,7 @@ interface TradeCardProps {
   trade: AnalyzedTrade
   isDynasty: boolean
   focusRosterId: number | null
+  highlighted?: boolean
 }
 
 function winnerName(sides: TradeSide[], winnerId: number | 'even' | 'pending'): string {
@@ -15,8 +16,12 @@ function winnerName(sides: TradeSide[], winnerId: number | 'even' | 'pending'): 
   return sides.find((s) => s.rosterId === winnerId)?.teamName ?? `Team ${winnerId}`
 }
 
-export function TradeCard({ trade, isDynasty, focusRosterId }: TradeCardProps) {
-  const [expanded, setExpanded] = useState(false)
+export function TradeCard({ trade, isDynasty, focusRosterId, highlighted }: TradeCardProps) {
+  const [expanded, setExpanded] = useState(Boolean(highlighted))
+
+  useEffect(() => {
+    if (highlighted) setExpanded(true)
+  }, [highlighted])
 
   const focusOutcome =
     focusRosterId != null ? getFocusOutcome(trade, focusRosterId) : null
@@ -39,7 +44,10 @@ export function TradeCard({ trade, isDynasty, focusRosterId }: TradeCardProps) {
   })
 
   return (
-    <article className="trade-card">
+    <article
+      id={`trade-${trade.id}`}
+      className={`trade-card ${highlighted ? 'trade-card-highlighted' : ''}`}
+    >
       <div className="trade-card-head">
         <div className="trade-meta">
           <span>{trade.season}</span>
