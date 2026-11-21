@@ -1,3 +1,5 @@
+import type { LeagueScoringProfile } from '../engine/scoringProfile'
+
 export interface SleeperLeague {
   league_id: string
   name: string
@@ -145,6 +147,7 @@ export interface LeagueHistoryBundle {
   isSuperflex: boolean
   tepBonus: number
   ppr: number
+  scoringProfile: LeagueScoringProfile
   seasons: SeasonSnapshot[]
 }
 
@@ -176,6 +179,10 @@ export interface TradedAsset {
   redraftValue: number
   multiSeasonPts: number
   dynastyValue: number
+  baseDynastyValue?: number
+  scoringMultiplier?: number
+  leaguePpg?: number
+  gamesPlayed?: number
   resolvedFromPick?: string
   pickTier?: 'Early' | 'Mid' | 'Late'
 }

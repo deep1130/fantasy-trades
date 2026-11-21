@@ -1,3 +1,4 @@
+import { buildLeagueScoringProfile } from '../engine/scoringProfile'
 import type {
   LeagueHistoryBundle,
   NflState,
@@ -228,13 +229,16 @@ export async function loadLeagueHistory(
   )
   seasons.sort((a, b) => Number(b.league.season) - Number(a.league.season))
 
+  const scoringProfile = buildLeagueScoringProfile(currentLeague)
+
   const bundle: LeagueHistoryBundle = {
     currentLeague,
     nflState,
     isDynasty,
     isSuperflex,
-    tepBonus: Number(currentLeague.scoring_settings?.bonus_rec_te ?? 0),
-    ppr: Number(currentLeague.scoring_settings?.rec ?? 0),
+    tepBonus: scoringProfile.tepBonus,
+    ppr: scoringProfile.ppr,
+    scoringProfile,
     seasons,
   }
 

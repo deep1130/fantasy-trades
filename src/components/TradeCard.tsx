@@ -132,6 +132,13 @@ export function TradeCard({ trade, isDynasty, focusRosterId }: TradeCardProps) {
                       {asset.sublabel && (
                         <div className="asset-sub">
                           {asset.sublabel}
+                          {asset.leaguePpg && asset.leaguePpg > 0
+                            ? ` · ${asset.leaguePpg.toFixed(1)} PPG`
+                            : ''}
+                          {asset.scoringMultiplier &&
+                          Math.abs(asset.scoringMultiplier - 1) >= 0.02
+                            ? ` · ${asset.scoringMultiplier > 1 ? '+' : ''}${Math.round((asset.scoringMultiplier - 1) * 100)}% league scoring`
+                            : ''}
                           {asset.resolvedFromPick ? ` · Was ${asset.resolvedFromPick}` : ''}
                         </div>
                       )}
@@ -181,39 +188,57 @@ export function TradeCard({ trade, isDynasty, focusRosterId }: TradeCardProps) {
 
       {expanded && (
         <div className="trade-breakdown">
-          {trade.sides.map((side) => (
-            <div key={side.rosterId} className="breakdown-box">
-              <h4>{side.teamName}</h4>
-              <div className="breakdown-line">
-                <span>Same-Season Post-Trade Pts</span>
-                <strong>{side.shortTermPts.toFixed(1)}</strong>
+          {trade.sides.map((side) => {
+            const rawTotal = side.received.reduce(
+              (sum, a) => sum + (a.baseDynastyValue ?? a.dynastyValue),
+              0,
+            )
+            const scoringDelta = side.currentDynastyValue - rawTotal
+            return (
+              <div key={side.rosterId} className="breakdown-box">
+                <h4>{side.teamName}</h4>
+                <div className="breakdown-line">
+                  <span>Same-Season Post-Trade Pts (League Scoring)</span>
+                  <strong>{side.shortTermPts.toFixed(1)}</strong>
+                </div>
+                <div className="breakdown-line">
+                  <span>Started in Lineup Pts</span>
+                  <strong>{side.starterPts.toFixed(1)}</strong>
+                </div>
+                <div className="breakdown-line">
+                  <span>Short-Term Score (incl. fresh ROS)</span>
+                  <strong>{side.shortTermScore.toFixed(1)}</strong>
+                </div>
+                {isDynasty && (
+                  <>
+                    <div className="breakdown-line">
+                      <span>Base Market Dynasty Value</span>
+                      <strong>{rawTotal.toLocaleString()}</strong>
+                    </div>
+                    <div className="breakdown-line">
+                      <span>League Scoring & Lineup Adj</span>
+                      <strong>
+                        {scoringDelta >= 0 ? '+' : ''}
+                        {scoringDelta.toLocaleString()}
+                      </strong>
+                    </div>
+                    <div className="breakdown-line">
+                      <span>Scoring-Adjusted Dynasty Value</span>
+                      <strong>{side.currentDynastyValue.toLocaleString()}</strong>
+                    </div>
+                    <div className="breakdown-line">
+                      <span>Multi-Season Realized Pts</span>
+                      <strong>{side.multiSeasonPts.toFixed(1)}</strong>
+                    </div>
+                    <div className="breakdown-line">
+                      <span>Combined Long-Term Score</span>
+                      <strong>{side.longTermScore.toLocaleString()}</strong>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="breakdown-line">
-                <span>Started in Lineup Pts</span>
-                <strong>{side.starterPts.toFixed(1)}</strong>
-              </div>
-              <div className="breakdown-line">
-                <span>Short-Term Score (incl. fresh ROS)</span>
-                <strong>{side.shortTermScore.toFixed(1)}</strong>
-              </div>
-              {isDynasty && (
-                <>
-                  <div className="breakdown-line">
-                    <span>Current Dynasty Value</span>
-                    <strong>{side.currentDynastyValue.toLocaleString()}</strong>
-                  </div>
-                  <div className="breakdown-line">
-                    <span>Multi-Season Realized Pts</span>
-                    <strong>{side.multiSeasonPts.toFixed(1)}</strong>
-                  </div>
-                  <div className="breakdown-line">
-                    <span>Combined Long-Term Score</span>
-                    <strong>{side.longTermScore.toLocaleString()}</strong>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </article>

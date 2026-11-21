@@ -15,9 +15,10 @@ interface KpiStripProps {
 
 export function KpiStrip({ bundle, trades, focusGm, superlatives }: KpiStripProps) {
   const seasonsLoaded = bundle ? bundle.seasons.map((s) => s.league.season).join(', ') : null
-  const formatText = bundle
-    ? `${bundle.isDynasty ? 'Dynasty' : 'Redraft'} · ${bundle.isSuperflex ? 'Superflex' : '1QB'}${bundle.tepBonus > 0 ? ` · +${bundle.tepBonus} TEP` : ''}`
-    : '--'
+  const scoringTags = bundle ? bundle.scoringProfile.tags.join(' · ') : '--'
+  const posNotes = bundle
+    ? Object.values(bundle.scoringProfile.posAdjustmentNotes).join(' · ')
+    : ''
 
   const topGm = bundle?.isDynasty ? superlatives.topLongTermGm : superlatives.topShortTermGm
 
@@ -26,7 +27,7 @@ export function KpiStrip({ bundle, trades, focusGm, superlatives }: KpiStripProp
       <div className="summary-item">
         <span className="summary-label">
           <Scale size={11} style={{ marginRight: 4 }} />
-          LEAGUE FORMAT & VOLUME
+          LEAGUE FORMAT & SCORING
         </span>
         <strong>
           {bundle ? `${trades.length} Trades` : '--'}
@@ -37,7 +38,9 @@ export function KpiStrip({ bundle, trades, focusGm, superlatives }: KpiStripProp
           )}
         </strong>
         <span className="summary-note">
-          {bundle ? `${formatText} (${seasonsLoaded})` : 'Enter a league ID or @username'}
+          {bundle
+            ? `${scoringTags}${posNotes ? ` · ${posNotes}` : ''} (${seasonsLoaded})`
+            : 'Enter a league ID or @username'}
         </span>
       </div>
 

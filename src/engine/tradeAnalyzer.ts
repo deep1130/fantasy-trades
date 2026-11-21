@@ -110,11 +110,14 @@ function computePlayerPointsFromTrade(
   sameSeasonStarterPts: number
   multiSeasonPts: number
   weeksPlayedSameSeason: number
+  activeGamesMultiSeason: number
+  leaguePpg: number
 } {
   let sameSeasonPts = 0
   let sameSeasonStarterPts = 0
   let multiSeasonPts = 0
   let weeksPlayedSameSeason = 0
+  let activeGamesMultiSeason = 0
 
   const tradeSeasonNum = Number(tradeSeason)
   const seasonsAsc = [...bundle.seasons].sort(
@@ -159,6 +162,7 @@ function computePlayerPointsFromTrade(
 
       if (pts !== 0 || onReceivingRoster) {
         multiSeasonPts += pts
+        if (pts > 0) activeGamesMultiSeason += 1
         if (isSameSeason) {
           sameSeasonPts += pts
           weeksPlayedSameSeason += 1
@@ -170,12 +174,45 @@ function computePlayerPointsFromTrade(
     }
   }
 
+  const leaguePpg =
+    activeGamesMultiSeason > 0
+      ? Math.round((multiSeasonPts / activeGamesMultiSeason) * 10) / 10
+      : 0
+
   return {
     sameSeasonPts,
     sameSeasonStarterPts,
     multiSeasonPts,
     weeksPlayedSameSeason,
+    activeGamesMultiSeason,
+    leaguePpg,
   }
+}
+
+function getLeagueScoringMultiplier(
+  position: string | undefined,
+  leaguePpg: number,
+  activeGames: number,
+  bundle: LeagueHistoryBundle,
+): number {
+  const posKey = (position || 'WR') as 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF'
+  const basePosMul = bundle.scoringProfile.posMultipliers[posKey] ?? 1.0
+
+  // If player has played 4+ active games under this league's scoring, factor in high-end scoring output
+  if (activeGames < 4 || leaguePpg <= 0) return basePosMul
+
+  const expectedStarterPpg: Record<string, number> = {
+    QB: bundle.scoringProfile.passTd >= 6 ? 19.5 : 17.5,
+    RB: 12.5 + bundle.ppr * 2.0 + bundle.scoringProfile.rushAttBonus * 14,
+    WR: 11.5 + bundle.ppr * 3.0,
+    TE: 8.5 + (bundle.ppr + bundle.tepBonus) * 2.8,
+  }
+  const ref = expectedStarterPpg[posKey]
+  if (!ref) return basePosMul
+
+  // Up to +/- 8% additional adjustment based on actual league-scored PPG vs positional norm
+  const ppgDeltaRatio = Math.max(-0.08, Math.min(0.08, ((leaguePpg - ref) / ref) * 0.14))
+  return Math.round((basePosMul * (1 + ppgDeltaRatio)) * 1000) / 1000
 }
 
 function estimateFallbackPlayerValue(
@@ -253,12 +290,22 @@ function buildTradeSides(
       bundle,
     )
 
-    const dynastyVal =
+    const pos = pLite?.position ?? valEntry?.position
+    const scoringMul = getLeagueScoringMultiplier(
+      pos,
+      pts.leaguePpg,
+      pts.activeGamesMultiSeason,
+      bundle,
+    )
+    const rawDynastyVal =
       valEntry?.dynastyValue ??
       estimateFallbackPlayerValue(pLite, pts.multiSeasonPts, bundle.isDynasty)
-    const redraftVal =
+    const rawRedraftVal =
       valEntry?.redraftValue ??
       estimateFallbackPlayerValue(pLite, pts.sameSeasonPts, false)
+
+    const dynastyVal = Math.round(rawDynastyVal * scoringMul)
+    const redraftVal = Math.round(rawRedraftVal * scoringMul)
 
     const asset: TradedAsset = {
       kind: 'player',
@@ -267,13 +314,17 @@ function buildTradeSides(
       sublabel: pLite
         ? `${pLite.position} · ${pLite.team}${pLite.age ? ` · ${pLite.age}y` : ''}`
         : valEntry?.position ?? '',
-      position: pLite?.position ?? valEntry?.position,
+      position: pos,
       age: pLite?.age ?? valEntry?.age ?? null,
       shortTermPts: pts.sameSeasonPts,
       starterPts: pts.sameSeasonStarterPts,
       redraftValue: redraftVal,
       multiSeasonPts: pts.multiSeasonPts,
       dynastyValue: dynastyVal,
+      baseDynastyValue: rawDynastyVal,
+      scoringMultiplier: scoringMul,
+      leaguePpg: pts.leaguePpg,
+      gamesPlayed: pts.activeGamesMultiSeason,
     }
     side.received.push(asset)
   }
@@ -312,9 +363,17 @@ function buildTradeSides(
         bundle,
       )
 
-      const dynastyVal =
+      const pos = pLite?.position ?? resolved.pick.metadata?.position ?? valEntry?.position
+      const scoringMul = getLeagueScoringMultiplier(
+        pos,
+        pts.leaguePpg,
+        pts.activeGamesMultiSeason,
+        bundle,
+      )
+      const rawDynastyVal =
         valEntry?.dynastyValue ??
         estimateFallbackPlayerValue(pLite, pts.multiSeasonPts, bundle.isDynasty)
+      const dynastyVal = Math.round(rawDynastyVal * scoringMul)
 
       // If pick resolved in the SAME season as an offseason trade, include its same-season pts
       const sameSeasonPickPts =
@@ -327,14 +386,18 @@ function buildTradeSides(
         kind: 'pick',
         id: `${pick.season}-${pick.round}-${pick.roster_id}`,
         label: `${pick.season} ${slotStr} · ${draftedName}`,
-        sublabel: `${pLite?.position ?? resolved.pick.metadata?.position ?? 'PICK'} · via ${origOwnerName}`,
-        position: pLite?.position ?? resolved.pick.metadata?.position,
+        sublabel: `${pos ?? 'PICK'} · via ${origOwnerName}`,
+        position: pos,
         age: pLite?.age ?? valEntry?.age ?? null,
         shortTermPts: sameSeasonPickPts,
         starterPts: sameSeasonStarter,
-        redraftValue: valEntry?.redraftValue ?? 0,
+        redraftValue: Math.round((valEntry?.redraftValue ?? 0) * scoringMul),
         multiSeasonPts: pts.multiSeasonPts,
         dynastyValue: dynastyVal,
+        baseDynastyValue: rawDynastyVal,
+        scoringMultiplier: scoringMul,
+        leaguePpg: pts.leaguePpg,
+        gamesPlayed: pts.activeGamesMultiSeason,
         resolvedFromPick: pickLabelBase,
       })
     } else {
