@@ -84,7 +84,7 @@ export function LeaderboardView({
                   className="th-sortable"
                   onClick={() => handleSort(isDynasty ? 'netLongTermValue' : 'netShortTermPts')}
                 >
-                  {isDynasty ? 'NET DYNASTY Δ' : 'NET IMPACT Δ'} <ArrowUpDown size={10} />
+                  {isDynasty ? 'NET DYNASTY VALUE' : 'NET IMPACT PTS'} <ArrowUpDown size={10} />
                 </th>
                 <th className="th-sortable" onClick={() => handleSort('fleecesWon')}>
                   FLEECES <ArrowUpDown size={10} />

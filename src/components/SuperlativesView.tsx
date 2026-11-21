@@ -92,10 +92,12 @@ export function SuperlativesView({
                   <div className="robbery-right">
                     <span className="luck-tag pos">
                       {isDynasty
-                        ? `+${t.longTermMargin.toLocaleString()} val`
+                        ? `+${t.longTermMargin.toLocaleString()} value`
                         : `+${t.shortTermMargin.toFixed(1)} pts`}
                     </span>
-                    <span className="robbery-opp">ST Δ {t.shortTermMargin.toFixed(1)} pts</span>
+                    <span className="robbery-opp">
+                      Short-Term Gap: {t.shortTermMargin.toFixed(1)} pts
+                    </span>
                   </div>
                 </div>
               )
@@ -141,9 +143,11 @@ export function SuperlativesView({
                       </span>
                     </div>
                     <div className="robbery-right">
-                      <span className="luck-tag pos">+{t.shortTermMargin.toFixed(1)} ST pts</span>
+                      <span className="luck-tag pos">
+                        +{t.shortTermMargin.toFixed(1)} Short-Term pts
+                      </span>
                       <span className="robbery-opp">
-                        +{t.longTermMargin.toLocaleString()} LT val
+                        +{t.longTermMargin.toLocaleString()} Long-Term value
                       </span>
                     </div>
                   </div>
@@ -168,7 +172,7 @@ export function SuperlativesView({
                   <span className="robbery-week">TRADE ADDICT</span>
                   <strong>{superlatives.mostActiveGm.teamName}</strong>
                   <span className="robbery-detail">
-                    {superlatives.mostActiveGm.tradeCount} deals · ST{' '}
+                    {superlatives.mostActiveGm.tradeCount} deals · Short-Term{' '}
                     {superlatives.mostActiveGm.shortWins}-{superlatives.mostActiveGm.shortLosses}
                   </span>
                 </div>
@@ -293,7 +297,7 @@ export function SuperlativesView({
                   {superlatives.mostActiveDuo.teamAName} ↔ {superlatives.mostActiveDuo.teamBName}
                 </strong>
                 <span className="robbery-detail">
-                  {superlatives.mostActiveDuo.tradeCount} deals · ST{' '}
+                  {superlatives.mostActiveDuo.tradeCount} deals · Short-Term{' '}
                   {superlatives.mostActiveDuo.aShortWins}-{superlatives.mostActiveDuo.bShortWins}
                 </span>
               </div>

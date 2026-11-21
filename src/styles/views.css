@@ -144,6 +144,21 @@
   color: var(--accent-text);
   font: 500 10.5px var(--mono);
 }
+.glossary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-subtle);
+  color: var(--muted);
+  font: 10px var(--mono);
+  line-height: 1.4;
+}
+.glossary-strip strong {
+  color: var(--ink-secondary);
+  font-weight: 600;
+}
 
 /* AVATARS & TEAM CELLS */
 .team-cell { display: flex; align-items: center; gap: 10px; }

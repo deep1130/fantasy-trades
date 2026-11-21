@@ -96,7 +96,7 @@ export function PartnerMatrixView({
                     <th>TRADE PARTNERS</th>
                     <th>DEALS</th>
                     <th>SHORT-TERM H2H</th>
-                    <th>NET ST IMPACT</th>
+                    <th>NET SHORT-TERM PTS</th>
                     {isDynasty && (
                       <>
                         <th>LONG-TERM H2H</th>

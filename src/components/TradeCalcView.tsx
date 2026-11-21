@@ -238,7 +238,7 @@ export function TradeCalcView({
       `⚖️ Trade Proposal — ${bundle.currentLeague.name}`,
       `• ${teamA?.teamName ?? 'Team A'} receives: ${selectedB.map((x) => x.label).join(', ') || 'Nothing'} [Grade: ${evaluation.aGrade}]`,
       `• ${teamB?.teamName ?? 'Team B'} receives: ${selectedA.map((x) => x.label).join(', ') || 'Nothing'} [Grade: ${evaluation.bGrade}]`,
-      `📊 Balance: ${evaluation.aPct}% / ${100 - evaluation.aPct}% (Δ ${Math.abs(evaluation.diff).toLocaleString()} league-adjusted val)`,
+      `📊 Balance: ${evaluation.aPct}% / ${100 - evaluation.aPct}% (Gap: ${Math.abs(evaluation.diff).toLocaleString()} league-adjusted value)`,
     ]
     await navigator.clipboard.writeText(lines.join('\n'))
     setCopied(true)
@@ -297,13 +297,13 @@ export function TradeCalcView({
           <div className="split-bar-labels">
             <span>
               {teamA?.teamName} receives: <strong>{evaluation.aGrade}</strong> (
-              {evaluation.aRec.adjusted.toLocaleString()} val
-              {bundle.isDynasty ? ` · ST ${evaluation.aStGrade}` : ''})
+              {evaluation.aRec.adjusted.toLocaleString()} value
+              {bundle.isDynasty ? ` · Short-Term ${evaluation.aStGrade}` : ''})
             </span>
             <span>
               {teamB?.teamName} receives: <strong>{evaluation.bGrade}</strong> (
-              {evaluation.bRec.adjusted.toLocaleString()} val
-              {bundle.isDynasty ? ` · ST ${evaluation.bStGrade}` : ''})
+              {evaluation.bRec.adjusted.toLocaleString()} value
+              {bundle.isDynasty ? ` · Short-Term ${evaluation.bStGrade}` : ''})
             </span>
           </div>
           <div className="split-bar-track">

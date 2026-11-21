@@ -63,14 +63,14 @@ export function TradeCard({
       const recStr = s.seasonRecord ? ` (${s.seasonRecord})` : ''
       const assets = s.received.map((a) => a.label).join(', ')
       const grades = isDynasty
-        ? `[ST: ${s.shortTermGrade} | LT: ${s.longTermGrade}]`
+        ? `[Short-Term: ${s.shortTermGrade} | Long-Term: ${s.longTermGrade}]`
         : `[Grade: ${s.shortTermGrade}]`
       lines.push(`• ${s.teamName}${recStr} got: ${assets} ${grades}`)
     }
     const stWin = winnerName(trade.sides, trade.shortTermWinner)
     const ltWin = winnerName(trade.sides, trade.longTermWinner)
     lines.push(
-      `🏆 Verdict: ${trade.verdictLabel} (${isDynasty ? `ST: ${stWin} | LT: ${ltWin}` : `Winner: ${stWin}`})`,
+      `🏆 Verdict: ${trade.verdictLabel} (${isDynasty ? `Short-Term: ${stWin} | Long-Term: ${ltWin}` : `Winner: ${stWin}`})`,
     )
     await navigator.clipboard.writeText(lines.join('\n'))
     setCopiedReceipt(true)
@@ -118,11 +118,11 @@ export function TradeCard({
 
         <div className="verdict-badges">
           <span className="pill neutral">
-            ST: {winnerName(trade.sides, trade.shortTermWinner)}
+            Short-Term: {winnerName(trade.sides, trade.shortTermWinner)}
           </span>
           {isDynasty && (
             <span className="pill neutral">
-              LT: {winnerName(trade.sides, trade.longTermWinner)}
+              Long-Term: {winnerName(trade.sides, trade.longTermWinner)}
             </span>
           )}
           <span className={`pill ${verdictClass}`}>{trade.verdictLabel}</span>
@@ -184,16 +184,16 @@ export function TradeCard({
                   )}
                   <span
                     className={`score-chip ${isShortWin ? 'winner' : ''}`}
-                    title="Short-Term Grade & Lineup Impact Score"
+                    title="Short-Term Grade & Immediate Season Lineup Impact"
                   >
-                    ST <strong>{side.shortTermGrade}</strong> · {side.shortTermScore.toFixed(1)}
+                    Short-Term <strong>{side.shortTermGrade}</strong> · {side.shortTermScore.toFixed(1)}
                   </span>
                   {isDynasty && (
                     <span
                       className={`score-chip ${isLongWin ? 'winner' : ''}`}
-                      title="Long-Term Dynasty Grade & Score"
+                      title="Long-Term Dynasty Grade & Total Asset Value"
                     >
-                      LT <strong>{side.longTermGrade}</strong> · {side.longTermScore.toLocaleString()}
+                      Long-Term <strong>{side.longTermGrade}</strong> · {side.longTermScore.toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -260,8 +260,8 @@ export function TradeCard({
 
       <div className="trade-card-foot">
         <span>
-          ST Δ {trade.shortTermMargin.toFixed(1)} impact pts
-          {isDynasty && ` · LT Δ ${trade.longTermMargin.toLocaleString()} dynasty val`}
+          Short-Term Gap: {trade.shortTermMargin.toFixed(1)} pts
+          {isDynasty && ` · Long-Term Gap: ${trade.longTermMargin.toLocaleString()} value`}
         </span>
         <div className="foot-actions">
           <button

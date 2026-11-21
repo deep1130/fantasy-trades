@@ -282,14 +282,33 @@ export function TradeFilters({
           <div className="partner-h2h-pill">
             <Users size={12} />
             <span>
-              H2H vs {focusIsA ? partnerRecord.teamBName : partnerRecord.teamAName}: ST{' '}
-              {focusIsA ? partnerRecord.aShortWins : partnerRecord.bShortWins}-
+              Head-to-Head vs {focusIsA ? partnerRecord.teamBName : partnerRecord.teamAName}:
+              Short-Term {focusIsA ? partnerRecord.aShortWins : partnerRecord.bShortWins}-
               {focusIsA ? partnerRecord.bShortWins : partnerRecord.aShortWins}
               {isDynasty &&
-                ` · LT ${focusIsA ? partnerRecord.aLongWins : partnerRecord.bLongWins}-${focusIsA ? partnerRecord.bLongWins : partnerRecord.aLongWins}`}
+                ` · Long-Term ${focusIsA ? partnerRecord.aLongWins : partnerRecord.bLongWins}-${focusIsA ? partnerRecord.bLongWins : partnerRecord.aLongWins}`}
             </span>
           </div>
         )}
+      </div>
+
+      <div className="glossary-strip">
+        <span>
+          <strong>Short-Term:</strong> Immediate season lineup impact (starter pts + points above
+          replacement)
+        </span>
+        {isDynasty && (
+          <span>
+            <strong>Long-Term:</strong> Dynasty asset value (league scoring adjusted) + multi-year
+            output
+          </span>
+        )}
+        <span>
+          <strong>PPG:</strong> Points per game in your league’s scoring
+        </span>
+        <span>
+          <strong>+W / -W:</strong> Finalized matchup &amp; median wins flipped by trade
+        </span>
       </div>
     </div>
   )

@@ -68,8 +68,8 @@ export function KpiStrip({
                 }`}
               >
                 {bundle?.isDynasty
-                  ? `${focusGm.longWins}-${focusGm.longLosses} LT`
-                  : `${focusGm.shortWins}-${focusGm.shortLosses} ST`}
+                  ? `${focusGm.longWins}-${focusGm.longLosses} Long-Term`
+                  : `${focusGm.shortWins}-${focusGm.shortLosses} Short-Term`}
               </span>
             </>
           ) : (
@@ -104,7 +104,7 @@ export function KpiStrip({
         </strong>
         <span className="summary-note">
           {topGm
-            ? `${topGm.tradeCount} trades · ${topGm.longWins} LT wins / ${topGm.shortWins} ST wins`
+            ? `${topGm.tradeCount} trades · ${topGm.longWins} Long-Term wins / ${topGm.shortWins} Short-Term wins`
             : 'Best net value gained across trades'}
         </span>
       </div>
@@ -139,7 +139,7 @@ export function KpiStrip({
         </strong>
         <span className="summary-note">
           {superlatives.biggestFleece
-            ? `${superlatives.biggestFleece.season} ${superlatives.biggestFleece.isOffseason ? 'Offseason' : `Wk ${superlatives.biggestFleece.week}`} · Δ ${superlatives.biggestFleece.longTermMargin.toLocaleString()} val / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts · View trade →`
+            ? `${superlatives.biggestFleece.season} ${superlatives.biggestFleece.isOffseason ? 'Offseason' : `Wk ${superlatives.biggestFleece.week}`} · Margin ${superlatives.biggestFleece.longTermMargin.toLocaleString()} value / ${superlatives.biggestFleece.shortTermMargin.toFixed(1)} pts · View trade →`
             : 'Most lopsided deal in league history'}
         </span>
       </div>
