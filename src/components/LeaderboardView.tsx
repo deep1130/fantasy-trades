@@ -145,10 +145,7 @@ export function LeaderboardView({
                         </strong>
                         <span className="stat-sub">
                           {gm.netShortTermPts >= 0 ? '+' : ''}
-                          {gm.netShortTermPts.toFixed(1)} pts
-                          {gm.netWinsSwung !== 0
-                            ? ` · ${gm.netWinsSwung > 0 ? '+' : ''}${gm.netWinsSwung}W swung`
-                            : ''}
+                          {gm.netShortTermPts.toFixed(1)} impact pts
                         </span>
                       </div>
                     </td>

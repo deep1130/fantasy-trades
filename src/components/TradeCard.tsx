@@ -174,14 +174,6 @@ export function TradeCard({
                 </div>
 
                 <div className="side-scores">
-                  {side.winsSwung !== 0 && (
-                    <span
-                      className={`score-chip ${side.winsSwung > 0 ? 'winner' : 'loser'}`}
-                      title="Counterfactual matchup & median wins directly flipped by this trade"
-                    >
-                      {side.winsSwung > 0 ? `+${side.winsSwung}` : side.winsSwung} W
-                    </span>
-                  )}
                   <span
                     className={`score-chip ${isShortWin ? 'winner' : ''}`}
                     title="Short-Term Grade & Immediate Season Lineup Impact"
@@ -301,12 +293,6 @@ export function TradeCard({
                 <div className="breakdown-line">
                   <span>Playoff Starter Pts (Wks 15–17)</span>
                   <strong>{side.playoffStarterPts.toFixed(1)}</strong>
-                </div>
-              )}
-              {side.winsSwung !== 0 && (
-                <div className="breakdown-line">
-                  <span>Counterfactual Matchup Wins Swung</span>
-                  <strong>{side.winsSwung > 0 ? `+${side.winsSwung}` : side.winsSwung} W</strong>
                 </div>
               )}
               {side.helpedWinTitle && (

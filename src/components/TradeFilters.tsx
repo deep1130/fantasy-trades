@@ -306,9 +306,6 @@ export function TradeFilters({
         <span>
           <strong>PPG:</strong> Points per game in your league’s scoring
         </span>
-        <span>
-          <strong>+W / -W:</strong> Finalized matchup &amp; median wins flipped by trade
-        </span>
       </div>
     </div>
   )
