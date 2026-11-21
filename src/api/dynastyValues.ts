@@ -34,9 +34,21 @@ export function lookupPickValue(
   tier: 'Early' | 'Mid' | 'Late',
   currentSeason: string,
 ): number {
-  const exactKey = `${season} ${round}${round === 1 ? 'st' : round === 2 ? 'nd' : round === 3 ? 'rd' : 'th'} (${tier})`
-  const genericKey = `${season} ${round}${round === 1 ? 'st' : round === 2 ? 'nd' : round === 3 ? 'rd' : 'th'}`
+  const yearsOut = Math.max(0, Number(season) - Number(currentSeason))
+  const suffix = round === 1 ? 'st' : round === 2 ? 'nd' : round === 3 ? 'rd' : 'th'
+  const genericKey = `${season} ${round}${suffix}`
 
+  // For picks 2+ years out (e.g. 2028/2029), rosters mean-revert—don't over-discount by today's record
+  if (yearsOut >= 2) {
+    const generic = valueMap.byPickKey.get(genericKey.toLowerCase())
+    if (generic != null) {
+      const gentleMul = tier === 'Early' ? 1.06 : tier === 'Late' ? 0.94 : 1.0
+      return Math.round(generic * gentleMul)
+    }
+    return pickBaseFallback(round, 'Mid', Number.isFinite(yearsOut) ? yearsOut : 2)
+  }
+
+  const exactKey = `${genericKey} (${tier})`
   const exact = valueMap.byPickKey.get(exactKey.toLowerCase())
   if (exact != null) return exact
 
@@ -46,7 +58,6 @@ export function lookupPickValue(
     return Math.round(generic * tierMul)
   }
 
-  const yearsOut = Math.max(0, Number(season) - Number(currentSeason))
   return pickBaseFallback(round, tier, Number.isFinite(yearsOut) ? yearsOut : 1)
 }
 

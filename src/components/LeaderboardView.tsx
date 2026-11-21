@@ -125,7 +125,9 @@ export function LeaderboardView({
                         )}
                         <div className="team-meta">
                           <span className="team-title">{gm.teamName}</span>
-                          <span className="team-sub">@{gm.ownerHandle}</span>
+                          <span className="team-sub">
+                            @{gm.ownerHandle} · {gm.archetype}
+                          </span>
                         </div>
                       </div>
                     </td>
@@ -143,7 +145,10 @@ export function LeaderboardView({
                         </strong>
                         <span className="stat-sub">
                           {gm.netShortTermPts >= 0 ? '+' : ''}
-                          {gm.netShortTermPts.toFixed(1)} impact pts
+                          {gm.netShortTermPts.toFixed(1)} pts
+                          {gm.netWinsSwung !== 0
+                            ? ` · ${gm.netWinsSwung > 0 ? '+' : ''}${gm.netWinsSwung}W swung`
+                            : ''}
                         </span>
                       </div>
                     </td>

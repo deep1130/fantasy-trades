@@ -60,9 +60,11 @@ export function computeLeagueStats(
       longEven: 0,
       netShortTermPts: 0,
       netLongTermValue: 0,
+      netWinsSwung: 0,
       fleecesWon: 0,
       fleecesLost: 0,
       winWinCount: 0,
+      archetype: 'Balanced GM',
       favoritePartnerName: null,
       favoritePartnerCount: 0,
     })
@@ -85,6 +87,7 @@ export function computeLeagueStats(
       gm.tradeCount += 1
       gm.netShortTermPts = Math.round((gm.netShortTermPts + (side.shortTermScore - avgShort)) * 10) / 10
       gm.netLongTermValue = Math.round(gm.netLongTermValue + (side.longTermScore - avgLong))
+      gm.netWinsSwung += side.winsSwung
 
       if (trade.shortTermWinner === side.rosterId) gm.shortWins += 1
       else if (typeof trade.shortTermWinner === 'number') gm.shortLosses += 1
@@ -151,6 +154,26 @@ export function computeLeagueStats(
   }
 
   for (const gm of gmMap.values()) {
+    // Classify GM Trade Archetype
+    if (gm.tradeCount === 0) {
+      gm.archetype = 'Stand Pat'
+    } else if (bundle.isDynasty && gm.netLongTermValue >= 2000 && gm.netShortTermPts >= 30) {
+      gm.archetype = 'Trade Shark'
+    } else if (bundle.isDynasty && gm.netLongTermValue >= 1600 && gm.netShortTermPts < 0) {
+      gm.archetype = 'Rebuild Architect'
+    } else if (gm.netShortTermPts >= 45 && (!bundle.isDynasty || gm.netLongTermValue < 600)) {
+      gm.archetype = 'Win-Now Buyer'
+    } else if (
+      (bundle.isDynasty && gm.netLongTermValue <= -1800) ||
+      (!bundle.isDynasty && gm.netShortTermPts <= -60)
+    ) {
+      gm.archetype = 'Overpayer'
+    } else if (gm.tradeCount >= 10) {
+      gm.archetype = 'Volume Dealer'
+    } else {
+      gm.archetype = 'Balanced GM'
+    }
+
     const counts = partnerCounts.get(gm.rosterId)
     if (!counts) continue
     let bestId = -1

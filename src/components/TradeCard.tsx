@@ -54,6 +54,21 @@ export function TradeCard({
   })
 
   const hasPlayoffHero = trade.sides.some((s) => s.playoffStarterPts >= 35)
+  const titleSide = trade.sides.find((s) => s.helpedWinTitle)
+  const primaryTotal =
+    trade.sides.length === 2
+      ? (isDynasty
+          ? trade.sides[0].longTermScore + trade.sides[1].longTermScore
+          : trade.sides[0].shortTermScore + trade.sides[1].shortTermScore)
+      : 0
+  const side0Pct =
+    trade.sides.length === 2 && primaryTotal > 0
+      ? Math.round(
+          ((isDynasty ? trade.sides[0].longTermScore : trade.sides[0].shortTermScore) /
+            primaryTotal) *
+            100,
+        )
+      : 50
 
   const handleCopyReceipt = async () => {
     const when = trade.isOffseason ? `${trade.season} Offseason` : `${trade.season} Wk ${trade.week}`
@@ -94,11 +109,24 @@ export function TradeCard({
               <span>{trade.sides.length}-Team Trade</span>
             </>
           )}
-          {hasPlayoffHero && (
-            <span className="pill split" title="Acquired players delivered 35+ starter points in fantasy playoffs">
+          {titleSide ? (
+            <span
+              className="pill win"
+              title={`${titleSide.teamName} started acquired players during their ${titleSide.helpedWinTitle} championship playoff run`}
+            >
               <Trophy size={10} />
-              Playoff Impact
+              Won {titleSide.helpedWinTitle} Title
             </span>
+          ) : (
+            hasPlayoffHero && (
+              <span
+                className="pill split"
+                title="Acquired players delivered 35+ starter points in fantasy playoffs"
+              >
+                <Trophy size={10} />
+                Playoff Impact
+              </span>
+            )
           )}
         </div>
 
@@ -160,6 +188,14 @@ export function TradeCard({
                 </div>
 
                 <div className="side-scores">
+                  {side.winsSwung !== 0 && (
+                    <span
+                      className={`score-chip ${side.winsSwung > 0 ? 'winner' : 'loser'}`}
+                      title="Counterfactual matchup & median wins directly flipped by this trade"
+                    >
+                      {side.winsSwung > 0 ? `+${side.winsSwung}` : side.winsSwung} W
+                    </span>
+                  )}
                   <span
                     className={`score-chip ${isShortWin ? 'winner' : ''}`}
                     title="Short-Term Grade & Lineup Impact Score"
@@ -236,6 +272,13 @@ export function TradeCard({
         })}
       </div>
 
+      {trade.sides.length === 2 && primaryTotal > 0 && (
+        <div className="card-split-bar" title={`${trade.sides[0].teamName} ${side0Pct}% vs ${trade.sides[1].teamName} ${100 - side0Pct}%`}>
+          <div className="card-split-a" style={{ width: `${side0Pct}%` }} />
+          <div className="card-split-b" style={{ width: `${100 - side0Pct}%` }} />
+        </div>
+      )}
+
       <div className="trade-card-foot">
         <span>
           ST Δ {trade.shortTermMargin.toFixed(1)} impact pts
@@ -279,6 +322,18 @@ export function TradeCard({
                 <div className="breakdown-line">
                   <span>Playoff Starter Pts (Wks 15–17)</span>
                   <strong>{side.playoffStarterPts.toFixed(1)}</strong>
+                </div>
+              )}
+              {side.winsSwung !== 0 && (
+                <div className="breakdown-line">
+                  <span>Counterfactual Matchup Wins Swung</span>
+                  <strong>{side.winsSwung > 0 ? `+${side.winsSwung}` : side.winsSwung} W</strong>
+                </div>
+              )}
+              {side.helpedWinTitle && (
+                <div className="breakdown-line">
+                  <span>Championship Impact</span>
+                  <strong>Won {side.helpedWinTitle} Title 🏆</strong>
                 </div>
               )}
               <div className="breakdown-line">

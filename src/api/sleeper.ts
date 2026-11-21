@@ -3,8 +3,10 @@ import type {
   LeagueHistoryBundle,
   NflState,
   SeasonSnapshot,
+  SleeperBracketMatch,
   SleeperDraft,
   SleeperDraftPick,
+  SleeperDraftPickTraded,
   SleeperLeague,
   SleeperMatchup,
   SleeperPlayerLite,
@@ -110,11 +112,18 @@ async function fetchSeasonSnapshot(
   nflState: NflState,
   signal?: AbortSignal,
 ): Promise<SeasonSnapshot> {
-  const [rosters, users, drafts] = await Promise.all([
+  const [rosters, users, drafts, bracket, tradedPicks] = await Promise.all([
     getJson<SleeperRoster[]>(`${SLEEPER_API}/league/${league.league_id}/rosters`, signal),
     getJson<SleeperUser[]>(`${SLEEPER_API}/league/${league.league_id}/users`, signal),
     getJson<SleeperDraft[]>(`${SLEEPER_API}/league/${league.league_id}/drafts`, signal).catch(() => []),
+    getJson<SleeperBracketMatch[]>(`${SLEEPER_API}/league/${league.league_id}/winners_bracket`, signal).catch(() => []),
+    getJson<SleeperDraftPickTraded[]>(`${SLEEPER_API}/league/${league.league_id}/traded_picks`, signal).catch(() => []),
   ])
+
+  const champMatch = (bracket ?? []).find((b) => b.p === 1 && typeof b.w === 'number')
+  const championRosterId = champMatch?.w ?? null
+  const runnerUpRosterId = champMatch?.l ?? null
+  const hasMedianMatch = Number(league.settings?.league_average_match) === 1
 
   const isCurrentSeason = league.season === nflState.season
   const maxWeek = isCurrentSeason
@@ -192,6 +201,10 @@ async function fetchSeasonSnapshot(
     matchupsByWeek,
     transactions: Array.from(tradeMap.values()),
     drafts: draftsWithPicks,
+    tradedPicks: Array.isArray(tradedPicks) ? tradedPicks : [],
+    championRosterId,
+    runnerUpRosterId,
+    hasMedianMatch,
     lastScoredWeek,
   }
 }

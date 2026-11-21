@@ -74,7 +74,13 @@ function buildIdentityMap(snapshot: SeasonSnapshot): Map<number, RosterIdentity>
 }
 
 function computeTierByRoster(rosters: SleeperRoster[]): Map<number, 'Early' | 'Mid' | 'Late'> {
+  const hasMaxPf = rosters.some((r) => (r.settings.ppts ?? 0) > 0)
   const scored = [...rosters].sort((a, b) => {
+    if (hasMaxPf) {
+      const pptsA = (a.settings.ppts ?? 0) + (a.settings.ppts_decimal ?? 0) / 100
+      const pptsB = (b.settings.ppts ?? 0) + (b.settings.ppts_decimal ?? 0) / 100
+      if (pptsA !== pptsB) return pptsA - pptsB // lowest MaxPF = Early pick
+    }
     const winsA = a.settings.wins ?? 0
     const winsB = b.settings.wins ?? 0
     if (winsA !== winsB) return winsA - winsB
@@ -92,6 +98,110 @@ function computeTierByRoster(rosters: SleeperRoster[]): Map<number, 'Early' | 'M
     map.set(r.roster_id, tier)
   })
   return map
+}
+
+function computeTradeWinsSwung(
+  tx: SleeperTransaction,
+  snap: SeasonSnapshot,
+  sides: TradeSide[],
+  nflStateWeek: number,
+  isCurrentSeason: boolean,
+): Map<number, number> {
+  const swungByRoster = new Map<number, number>(sides.map((s) => [s.rosterId, 0]))
+  const startWeek = Math.max(1, tx.leg || 1)
+
+  // Map players received & sent by each roster in this trade
+  const receivedBy = new Map<number, string[]>()
+  const sentBy = new Map<number, string[]>()
+  for (const s of sides) {
+    receivedBy.set(s.rosterId, [])
+    sentBy.set(s.rosterId, [])
+  }
+  for (const [pid, rId] of Object.entries(tx.adds ?? {})) {
+    receivedBy.get(rId)?.push(pid)
+  }
+  for (const [pid, rId] of Object.entries(tx.drops ?? {})) {
+    sentBy.get(rId)?.push(pid)
+  }
+
+  for (let w = startWeek; w <= 17; w += 1) {
+    // Skip live in-progress current week so TNF-only scores never count as finalized win flips
+    if (isCurrentSeason && w >= nflStateWeek) continue
+
+    const matchups = snap.matchupsByWeek[w]
+    if (!matchups || matchups.length < 2) continue
+
+    const scoredPts = matchups.map((m) => m.points ?? 0).sort((a, b) => b - a)
+    const avgPts = scoredPts.reduce((s, x) => s + x, 0) / scoredPts.length
+    if (scoredPts[0] <= 0 || avgPts < 45) continue
+    const half = Math.floor(scoredPts.length / 2)
+    const medianCutoff =
+      scoredPts.length % 2 === 0
+        ? (scoredPts[half - 1] + scoredPts[half]) / 2
+        : scoredPts[half]
+
+    for (const side of sides) {
+      const m = matchups.find((x) => x.roster_id === side.rosterId)
+      if (!m || (m.points ?? 0) <= 0) continue
+
+      const inIds = receivedBy.get(side.rosterId) ?? []
+      const outIds = sentBy.get(side.rosterId) ?? []
+      if (inIds.length === 0 && outIds.length === 0) continue
+
+      // Points started by incoming players in week w
+      let inStarted = 0
+      for (const pid of inIds) {
+        if (m.starters?.includes(pid)) {
+          inStarted += m.players_points?.[pid] ?? 0
+        }
+      }
+
+      // Points started by outgoing players (on their new team) in week w
+      let outStarted = 0
+      for (const pid of outIds) {
+        for (const otherM of matchups) {
+          if (otherM.roster_id !== side.rosterId && otherM.starters?.includes(pid)) {
+            outStarted += otherM.players_points?.[pid] ?? 0
+            break
+          }
+        }
+      }
+
+      const delta = inStarted - outStarted
+      if (Math.abs(delta) < 0.5) continue
+
+      const actualPts = m.points
+      const withoutTradePts = actualPts - delta
+      let weekSwing = 0
+
+      // H2H opponent flip check
+      if (m.matchup_id != null) {
+        const opp = matchups.find(
+          (x) => x.matchup_id === m.matchup_id && x.roster_id !== side.rosterId,
+        )
+        if (opp && (opp.points ?? 0) > 0) {
+          const wonActual = actualPts > opp.points
+          const wonWithout = withoutTradePts > opp.points
+          if (wonActual && !wonWithout) weekSwing += 1
+          else if (!wonActual && wonWithout) weekSwing -= 1
+        }
+      }
+
+      // League median flip check
+      if (snap.hasMedianMatch) {
+        const beatMedActual = actualPts >= medianCutoff
+        const beatMedWithout = withoutTradePts >= medianCutoff
+        if (beatMedActual && !beatMedWithout) weekSwing += 1
+        else if (!beatMedActual && beatMedWithout) weekSwing -= 1
+      }
+
+      if (weekSwing !== 0) {
+        swungByRoster.set(side.rosterId, (swungByRoster.get(side.rosterId) ?? 0) + weekSwing)
+      }
+    }
+  }
+
+  return swungByRoster
 }
 
 function findSeasonRookieDraft(
@@ -403,6 +513,8 @@ function buildTradeSides(
       shortTermPts: 0,
       starterPts: 0,
       playoffStarterPts: 0,
+      winsSwung: 0,
+      helpedWinTitle: null,
       shortTermGrade: 'B',
       longTermScore: 0,
       longTermGrade: 'B',
@@ -707,6 +819,22 @@ function buildTradeSides(
     side.realizedParBonus = Math.round(parBonus)
     side.multiSeasonPts = Math.round(rawMultiPts * 10) / 10
     side.longTermScore = Math.round(pkgDynastyValue + parBonus)
+  }
+
+  const winsSwungMap = computeTradeWinsSwung(
+    tx,
+    snap,
+    sides,
+    bundle.nflState.week || 18,
+    isCurrentSeason,
+  )
+
+  for (const side of sides) {
+    side.winsSwung = winsSwungMap.get(side.rosterId) ?? 0
+    if (snap.championRosterId === side.rosterId && side.playoffStarterPts >= 15) {
+      side.helpedWinTitle = snap.league.season
+      side.shortTermScore = Math.round((side.shortTermScore + 25) * 10) / 10
+    }
   }
 
   // Stud Cornerstone Bonus: if the single highest-value asset in the trade is an elite stud (>=5000)

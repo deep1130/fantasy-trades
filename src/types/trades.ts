@@ -128,6 +128,16 @@ export interface UserLeagueSummary {
   ownerRosterId?: number
 }
 
+export interface SleeperBracketMatch {
+  r: number
+  m: number
+  t1: number | null
+  t2: number | null
+  w: number | null
+  l: number | null
+  p?: number
+}
+
 export interface SeasonSnapshot {
   league: SleeperLeague
   rosters: SleeperRoster[]
@@ -138,6 +148,10 @@ export interface SeasonSnapshot {
     draft: SleeperDraft
     picks: SleeperDraftPick[]
   }[]
+  tradedPicks: SleeperDraftPickTraded[]
+  championRosterId: number | null
+  runnerUpRosterId: number | null
+  hasMedianMatch: boolean
   lastScoredWeek: number
 }
 
@@ -207,6 +221,8 @@ export interface TradeSide {
   shortTermPts: number
   starterPts: number
   playoffStarterPts: number
+  winsSwung: number
+  helpedWinTitle: string | null
   shortTermGrade: string
   longTermScore: number
   longTermGrade: string
@@ -266,9 +282,11 @@ export interface GmTradeSummary {
   longEven: number
   netShortTermPts: number
   netLongTermValue: number
+  netWinsSwung: number
   fleecesWon: number
   fleecesLost: number
   winWinCount: number
+  archetype: string
   favoritePartnerName: string | null
   favoritePartnerCount: number
 }

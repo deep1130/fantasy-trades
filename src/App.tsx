@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeftRight, Award, CircleAlert, Trophy, Users } from 'lucide-react'
+import { ArrowLeftRight, Award, Calculator, CircleAlert, Trophy, Users } from 'lucide-react'
 import { fetchDynastyValues } from './api/dynastyValues'
 import { fetchSleeperPlayers, fetchUserLeagues, loadLeagueHistory } from './api/sleeper'
 import { HeroInput } from './components/HeroInput'
@@ -9,6 +9,7 @@ import { MethodologySection } from './components/MethodologySection'
 import { PartnerMatrixView } from './components/PartnerMatrixView'
 import { SuperlativesView } from './components/SuperlativesView'
 import { TopBar } from './components/TopBar'
+import { TradeCalcView } from './components/TradeCalcView'
 import { TradeCard } from './components/TradeCard'
 import {
   TradeFilters,
@@ -21,12 +22,13 @@ import type {
   AnalyzedTrade,
   DynastyValueMap,
   LeagueHistoryBundle,
+  SleeperPlayerLite,
   UserLeagueSummary,
 } from './types/trades'
 import './styles/layout.css'
 import './styles/views.css'
 
-type ViewTab = 'trades' | 'leaderboard' | 'partners' | 'superlatives'
+type ViewTab = 'trades' | 'leaderboard' | 'partners' | 'superlatives' | 'calc'
 
 interface RecentLeague {
   id: string
@@ -93,7 +95,9 @@ export default function App() {
   const [highlightedTradeId, setHighlightedTradeId] = useState<string | null>(null)
   const [view, setView] = useState<ViewTab>(() => {
     const v = params.get('view')
-    return v === 'leaderboard' || v === 'partners' || v === 'superlatives' ? v : 'trades'
+    return v === 'leaderboard' || v === 'partners' || v === 'superlatives' || v === 'calc'
+      ? v
+      : 'trades'
   })
 
   const [includeHistory, setIncludeHistory] = useState(true)
@@ -108,6 +112,7 @@ export default function App() {
   const [recentLeagues, setRecentLeagues] = useState<RecentLeague[]>(readRecentLeagues)
 
   const [bundle, setBundle] = useState<LeagueHistoryBundle | null>(null)
+  const [playersMap, setPlayersMap] = useState<Map<string, SleeperPlayerLite>>(() => new Map())
   const [valueMap, setValueMap] = useState<DynastyValueMap | null>(null)
   const [trades, setTrades] = useState<AnalyzedTrade[]>([])
 
@@ -159,6 +164,7 @@ export default function App() {
 
         const analyzed = analyzeLeagueTrades(histBundle, playersMap, dynValues)
         setBundle(histBundle)
+        setPlayersMap(playersMap)
         setValueMap(dynValues)
         setTrades(analyzed)
         setActiveLeagueId(leagueId)
@@ -490,6 +496,7 @@ export default function App() {
               {view === 'leaderboard' && 'FRANCHISE SCORECARD'}
               {view === 'partners' && 'HEAD-TO-HEAD PARTNERS'}
               {view === 'superlatives' && 'LEAGUE SUPERLATIVES'}
+              {view === 'calc' && 'LIVE ROSTER TRADE SIMULATOR'}
               <span>·</span> {bundle ? `${trades.length} DEALS` : 'FANTASY TRADES'}
             </p>
             <h2>
@@ -497,6 +504,7 @@ export default function App() {
               {view === 'leaderboard' && 'Manager Trade Standings & Net Value'}
               {view === 'partners' && 'Head-to-Head Trade Partner Matrix'}
               {view === 'superlatives' && 'Biggest Fleeces & Win-Win Blockbusters'}
+              {view === 'calc' && 'League-Adjusted Trade Calculator'}
             </h2>
           </div>
 
@@ -534,6 +542,14 @@ export default function App() {
               >
                 <Award size={12} />
                 <span>Superlatives</span>
+              </button>
+              <button
+                type="button"
+                className={view === 'calc' ? 'selected' : ''}
+                onClick={() => setView('calc')}
+              >
+                <Calculator size={12} />
+                <span>Trade Calc</span>
               </button>
             </div>
           </div>
@@ -633,6 +649,16 @@ export default function App() {
             superlatives={superlatives}
             isDynasty={bundle.isDynasty}
             onJumpToTrade={handleJumpToTrade}
+          />
+        )}
+
+        {bundle && valueMap && view === 'calc' && (
+          <TradeCalcView
+            bundle={bundle}
+            gms={gmSummaries}
+            playersMap={playersMap}
+            valueMap={valueMap}
+            defaultRosterId={focusRosterId}
           />
         )}
 
