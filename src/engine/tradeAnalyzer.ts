@@ -938,12 +938,23 @@ function buildTradeSides(
   const stGrades = assignGrades(stScores)
   const ltGrades = assignGrades(ltScores)
   sides.forEach((s, i) => {
-    const onlyFuturePicks =
+    const onlyPicksOrZeroSt =
       bundle.isDynasty &&
       s.shortTermScore === 0 &&
-      s.received.every((a) => (a.kind === 'pick' && !a.resolvedFromPick) || a.kind === 'faab')
-    s.shortTermGrade =
-      onlyFuturePicks && s.windowTier === 'Rebuilder' ? 'Picks' : stGrades[i]
+      s.received.every((a) => a.kind === 'pick' || a.kind === 'faab')
+    const rebuilderSoldForFuture =
+      bundle.isDynasty &&
+      s.windowTier === 'Rebuilder' &&
+      s.shortTermScore < stAvg &&
+      (s.shortTermScore === 0 ||
+        (s.received.every((a) => a.kind === 'pick' || a.kind === 'faab' || a.shortTermPts <= 15) &&
+          s.longTermScore >= ltAvg * 0.92))
+
+    s.shortTermGrade = rebuilderSoldForFuture
+      ? 'Rebuild'
+      : onlyPicksOrZeroSt
+        ? 'Picks'
+        : stGrades[i]
     s.longTermGrade = ltGrades[i]
     const stRatio = stAvg > 0 ? (s.shortTermScore - stAvg) / stAvg : 0
     const ltRatio = ltAvg > 0 ? (s.longTermScore - ltAvg) / ltAvg : 0
