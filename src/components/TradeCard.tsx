@@ -176,16 +176,16 @@ export function TradeCard({
                 <div className="side-scores">
                   <span
                     className={`score-chip ${isShortWin ? 'winner' : ''}`}
-                    title="Short-Term Grade & Immediate Season Lineup Impact"
+                    title={`Short-Term Grade (${side.shortTermScore.toFixed(1)} impact pts — click Score Breakdown for details)`}
                   >
-                    Short-Term <strong>{side.shortTermGrade}</strong> · {side.shortTermScore.toFixed(1)}
+                    Short-Term: <strong>{side.shortTermGrade}</strong>
                   </span>
                   {isDynasty && (
                     <span
                       className={`score-chip ${isLongWin ? 'winner' : ''}`}
-                      title="Long-Term Dynasty Grade & Total Asset Value"
+                      title={`Long-Term Dynasty Grade (${side.longTermScore.toLocaleString()} value — click Score Breakdown for details)`}
                     >
-                      Long-Term <strong>{side.longTermGrade}</strong> · {side.longTermScore.toLocaleString()}
+                      Long-Term: <strong>{side.longTermGrade}</strong>
                     </span>
                   )}
                 </div>
