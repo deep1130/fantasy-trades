@@ -49,124 +49,127 @@ export function TradeFilters({
   const focusIsA = partnerRecord && focusRosterId === partnerRecord.rosterA
 
   return (
-    <div className="filters-bar">
-      <div className="filter-group">
-        <label htmlFor="focus-gm">Manager</label>
-        <select
-          id="focus-gm"
-          className="filter-select"
-          value={focusRosterId ?? ''}
-          onChange={(e) => {
-            const val = e.target.value ? Number(e.target.value) : null
-            onChangeFocusRoster(val)
-            if (val === partnerRosterId) onChangePartnerRoster(null)
-          }}
-        >
-          <option value="">All League Trades</option>
-          {gms.map((gm) => (
-            <option key={gm.rosterId} value={gm.rosterId}>
-              {gm.teamName} ({gm.tradeCount})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="filter-group">
-        <label htmlFor="partner-gm">League Mate</label>
-        <select
-          id="partner-gm"
-          className="filter-select"
-          value={partnerRosterId ?? ''}
-          onChange={(e) =>
-            onChangePartnerRoster(e.target.value ? Number(e.target.value) : null)
-          }
-        >
-          <option value="">Any Partner</option>
-          {gms
-            .filter((g) => g.rosterId !== focusRosterId)
-            .map((gm) => (
-              <option key={gm.rosterId} value={gm.rosterId}>
-                {gm.teamName}
-              </option>
-            ))}
-        </select>
-      </div>
-
-      <div className="filter-group">
-        <label htmlFor="outcome-filter">Verdict</label>
-        <select
-          id="outcome-filter"
-          className="filter-select"
-          value={outcomeFilter}
-          onChange={(e) => onChangeOutcomeFilter(e.target.value as OutcomeFilter)}
-        >
-          <option value="all">All Verdicts</option>
-          {focusRosterId != null ? (
-            <>
-              <option value="won-both">Won Deal (Both / Swept)</option>
-              <option value="won-short">Won Short-Term</option>
-              {isDynasty && <option value="won-long">Won Long-Term (Dynasty)</option>}
-              <option value="lost-both">Lost Deal</option>
-            </>
-          ) : (
-            <>
-              {isDynasty && <option value="win-win">Win-Win (Contender vs Rebuilder)</option>}
-              <option value="fleece">Total Fleeces</option>
-              <option value="even">Even / Fair</option>
-            </>
-          )}
-        </select>
-      </div>
-
-      {availableSeasons.length > 1 && (
+    <>
+      <div className="filters-bar">
         <div className="filter-group">
-          <label htmlFor="season-filter">Season</label>
+          <label htmlFor="focus-gm">Manager</label>
           <select
-            id="season-filter"
+            id="focus-gm"
             className="filter-select"
-            value={seasonFilter}
-            onChange={(e) => onChangeSeasonFilter(e.target.value)}
+            value={focusRosterId ?? ''}
+            onChange={(e) => {
+              const val = e.target.value ? Number(e.target.value) : null
+              onChangeFocusRoster(val)
+              if (val === partnerRosterId) onChangePartnerRoster(null)
+            }}
           >
-            <option value="all">All Seasons</option>
-            {availableSeasons.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            <option value="">All League Trades</option>
+            {gms.map((gm) => (
+              <option key={gm.rosterId} value={gm.rosterId}>
+                {gm.teamName} ({gm.tradeCount})
               </option>
             ))}
           </select>
         </div>
-      )}
 
-      <div className="search-wrap">
-        <Search size={13} />
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Search player, pick, team…"
-          value={searchQuery}
-          onChange={(e) => onChangeSearchQuery(e.target.value)}
-        />
+        <div className="filter-group">
+          <label htmlFor="partner-gm">League Mate</label>
+          <select
+            id="partner-gm"
+            className="filter-select"
+            value={partnerRosterId ?? ''}
+            onChange={(e) =>
+              onChangePartnerRoster(e.target.value ? Number(e.target.value) : null)
+            }
+          >
+            <option value="">Any Partner</option>
+            {gms
+              .filter((g) => g.rosterId !== focusRosterId)
+              .map((gm) => (
+                <option key={gm.rosterId} value={gm.rosterId}>
+                  {gm.teamName}
+                </option>
+              ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label htmlFor="outcome-filter">Verdict</label>
+          <select
+            id="outcome-filter"
+            className="filter-select"
+            value={outcomeFilter}
+            onChange={(e) => onChangeOutcomeFilter(e.target.value as OutcomeFilter)}
+          >
+            <option value="all">All Verdicts</option>
+            {focusRosterId != null ? (
+              <>
+                <option value="won-both">Won Deal (Swept)</option>
+                <option value="won-short">Won Short-Term</option>
+                {isDynasty && <option value="won-long">Won Long-Term (Dynasty)</option>}
+                <option value="lost-both">Lost Deal</option>
+              </>
+            ) : (
+              <>
+                {isDynasty && <option value="win-win">Win-Win (Contender vs Rebuilder)</option>}
+                <option value="fleece">Fleeces Only</option>
+                <option value="even">Even / Fair</option>
+              </>
+            )}
+          </select>
+        </div>
+
+        {availableSeasons.length > 1 && (
+          <div className="filter-group">
+            <label htmlFor="season-filter">Season</label>
+            <select
+              id="season-filter"
+              className="filter-select"
+              value={seasonFilter}
+              onChange={(e) => onChangeSeasonFilter(e.target.value)}
+            >
+              <option value="all">All Seasons</option>
+              {availableSeasons.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="filter-group">
+          <label htmlFor="trade-search">Search</label>
+          <div className="search-wrap">
+            <Search size={13} />
+            <input
+              id="trade-search"
+              type="text"
+              className="search-input"
+              placeholder="Player, pick, team…"
+              value={searchQuery}
+              onChange={(e) => onChangeSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
 
-      {partnerRecord && focusRosterId != null && (
-        <div className="partner-h2h-pill">
-          <Users size={12} />
-          <span>
-            {partnerRecord.tradeCount} trades vs{' '}
-            {focusIsA ? partnerRecord.teamBName : partnerRecord.teamAName} ·{' '}
-            ST {focusIsA ? partnerRecord.aShortWins : partnerRecord.bShortWins}-
-            {focusIsA ? partnerRecord.bShortWins : partnerRecord.aShortWins}
-            {isDynasty &&
-              ` · LT ${focusIsA ? partnerRecord.aLongWins : partnerRecord.bLongWins}-${focusIsA ? partnerRecord.bLongWins : partnerRecord.aLongWins}`}
-          </span>
-        </div>
-      )}
-
-      {!partnerRecord && (
-        <span style={{ color: 'var(--muted)', font: '11px var(--mono)' }}>
-          {filteredCount} shown
-        </span>
-      )}
-    </div>
+      <div className="filter-summary-bar">
+        <span>SHOWING {filteredCount} TRADES</span>
+        {partnerRecord && focusRosterId != null && (
+          <div className="partner-h2h-pill">
+            <Users size={12} />
+            <span>
+              {partnerRecord.tradeCount} deals vs{' '}
+              {focusIsA ? partnerRecord.teamBName : partnerRecord.teamAName} · ST{' '}
+              {focusIsA ? partnerRecord.aShortWins : partnerRecord.bShortWins}-
+              {focusIsA ? partnerRecord.bShortWins : partnerRecord.aShortWins}
+              {isDynasty &&
+                ` · LT ${focusIsA ? partnerRecord.aLongWins : partnerRecord.bLongWins}-${focusIsA ? partnerRecord.bLongWins : partnerRecord.aLongWins}`}
+            </span>
+          </div>
+        )}
+      </div>
+    </>
   )
 }

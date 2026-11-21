@@ -29,7 +29,7 @@ interface RecentLeague {
   season: string
 }
 
-const RECENT_KEY = 'trade-ledger-recent-leagues-v1'
+const RECENT_KEY = 'fantasy-trades-recent-leagues-v1'
 
 function readRecentLeagues(): RecentLeague[] {
   try {
@@ -342,134 +342,152 @@ export default function App() {
         superlatives={superlatives}
       />
 
-      <div className="view-tabs-bar">
-        <div className="view-tabs" role="tablist">
-          <button
-            type="button"
-            className={`view-tab ${view === 'trades' ? 'active' : ''}`}
-            onClick={() => setView('trades')}
-          >
-            <ArrowLeftRight size={14} />
-            <span>Trades Feed</span>
-            <span className="tab-count">{filteredTrades.length}</span>
-          </button>
-          <button
-            type="button"
-            className={`view-tab ${view === 'leaderboard' ? 'active' : ''}`}
-            onClick={() => setView('leaderboard')}
-          >
-            <Trophy size={14} />
-            <span>GM Leaderboard</span>
-          </button>
-          <button
-            type="button"
-            className={`view-tab ${view === 'partners' ? 'active' : ''}`}
-            onClick={() => setView('partners')}
-          >
-            <Users size={14} />
-            <span>Partner Matrix</span>
-          </button>
-          <button
-            type="button"
-            className={`view-tab ${view === 'superlatives' ? 'active' : ''}`}
-            onClick={() => setView('superlatives')}
-          >
-            <Award size={14} />
-            <span>Superlatives</span>
-          </button>
-        </div>
-      </div>
+      <section className="main-board-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">
+              {view === 'trades' && 'TRADE FEED'}
+              {view === 'leaderboard' && 'FRANCHISE SCORECARD'}
+              {view === 'partners' && 'HEAD-TO-HEAD PARTNERS'}
+              {view === 'superlatives' && 'LEAGUE SUPERLATIVES'}
+              <span>·</span> {bundle ? `${trades.length} DEALS` : 'FANTASY TRADES'}
+            </p>
+            <h2>
+              {view === 'trades' && 'Short-Term & Long-Term Trade Winners'}
+              {view === 'leaderboard' && 'Manager Trade Standings & Net Value'}
+              {view === 'partners' && 'Head-to-Head Trade Partner Matrix'}
+              {view === 'superlatives' && 'Biggest Fleeces & Win-Win Blockbusters'}
+            </h2>
+          </div>
 
-      {!bundle ? (
-        <div className="empty-state">
-          <ArrowLeftRight size={24} style={{ opacity: 0.6 }} />
-          <h3>Connect a Sleeper League or @Username</h3>
-          <p>
-            Paste any Sleeper league ID or @username above to audit every trade by short-term
-            production and long-term dynasty value.
-          </p>
+          <div className="board-tools">
+            <div className="view-tabs" role="tablist">
+              <button
+                type="button"
+                className={view === 'trades' ? 'selected' : ''}
+                onClick={() => setView('trades')}
+              >
+                <ArrowLeftRight size={12} />
+                <span>Trades</span>
+                <span className="tab-count">{filteredTrades.length}</span>
+              </button>
+              <button
+                type="button"
+                className={view === 'leaderboard' ? 'selected' : ''}
+                onClick={() => setView('leaderboard')}
+              >
+                <Trophy size={12} />
+                <span>Standings</span>
+              </button>
+              <button
+                type="button"
+                className={view === 'partners' ? 'selected' : ''}
+                onClick={() => setView('partners')}
+              >
+                <Users size={12} />
+                <span>Partners</span>
+              </button>
+              <button
+                type="button"
+                className={view === 'superlatives' ? 'selected' : ''}
+                onClick={() => setView('superlatives')}
+              >
+                <Award size={12} />
+                <span>Superlatives</span>
+              </button>
+            </div>
+          </div>
         </div>
-      ) : (
-        <>
-          {view === 'trades' && (
-            <section>
-              <TradeFilters
-                isDynasty={bundle.isDynasty}
+
+        {!bundle ? (
+          <div className="empty-state">
+            <ArrowLeftRight size={24} style={{ opacity: 0.6 }} />
+            <h3>Connect a Sleeper League or @Username</h3>
+            <p>
+              Paste any Sleeper league ID or @username above to grade every trade by short-term
+              lineup impact and long-term dynasty value.
+            </p>
+          </div>
+        ) : (
+          <>
+            {view === 'trades' && (
+              <div>
+                <TradeFilters
+                  isDynasty={bundle.isDynasty}
+                  gms={gmSummaries}
+                  focusRosterId={focusRosterId}
+                  onChangeFocusRoster={setFocusRosterId}
+                  partnerRosterId={partnerRosterId}
+                  onChangePartnerRoster={setPartnerRosterId}
+                  seasonFilter={seasonFilter}
+                  onChangeSeasonFilter={setSeasonFilter}
+                  availableSeasons={availableSeasons}
+                  outcomeFilter={outcomeFilter}
+                  onChangeOutcomeFilter={setOutcomeFilter}
+                  searchQuery={searchQuery}
+                  onChangeSearchQuery={setSearchQuery}
+                  partnerRecord={partnerRecord}
+                  filteredCount={filteredTrades.length}
+                />
+
+                {filteredTrades.length === 0 ? (
+                  <div className="empty-state">
+                    <h3>No matching trades</h3>
+                    <p>Try clearing a partner, season, or verdict filter above.</p>
+                  </div>
+                ) : (
+                  <div className="trades-list">
+                    {filteredTrades.map((trade) => (
+                      <TradeCard
+                        key={trade.id}
+                        trade={trade}
+                        isDynasty={bundle.isDynasty}
+                        focusRosterId={focusRosterId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {view === 'leaderboard' && (
+              <LeaderboardView
                 gms={gmSummaries}
+                isDynasty={bundle.isDynasty}
                 focusRosterId={focusRosterId}
-                onChangeFocusRoster={setFocusRosterId}
-                partnerRosterId={partnerRosterId}
-                onChangePartnerRoster={setPartnerRosterId}
-                seasonFilter={seasonFilter}
-                onChangeSeasonFilter={setSeasonFilter}
-                availableSeasons={availableSeasons}
-                outcomeFilter={outcomeFilter}
-                onChangeOutcomeFilter={setOutcomeFilter}
-                searchQuery={searchQuery}
-                onChangeSearchQuery={setSearchQuery}
-                partnerRecord={partnerRecord}
-                filteredCount={filteredTrades.length}
+                onSelectManager={(rosterId) => {
+                  setFocusRosterId(rosterId)
+                  setPartnerRosterId(null)
+                  setView('trades')
+                }}
               />
+            )}
 
-              {filteredTrades.length === 0 ? (
-                <div className="empty-state">
-                  <h3>No matching trades</h3>
-                  <p>Try clearing a partner, season, or verdict filter above.</p>
-                </div>
-              ) : (
-                <div className="trades-list">
-                  {filteredTrades.map((trade) => (
-                    <TradeCard
-                      key={trade.id}
-                      trade={trade}
-                      isDynasty={bundle.isDynasty}
-                      focusRosterId={focusRosterId}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+            {view === 'partners' && (
+              <PartnerMatrixView
+                pairs={partnerPairs}
+                gms={gmSummaries}
+                isDynasty={bundle.isDynasty}
+                focusRosterId={focusRosterId}
+                onInspectPair={(rA, rB) => {
+                  setFocusRosterId(rA)
+                  setPartnerRosterId(rB)
+                  setView('trades')
+                }}
+              />
+            )}
 
-          {view === 'leaderboard' && (
-            <LeaderboardView
-              gms={gmSummaries}
-              isDynasty={bundle.isDynasty}
-              focusRosterId={focusRosterId}
-              onSelectManager={(rosterId) => {
-                setFocusRosterId(rosterId)
-                setPartnerRosterId(null)
-                setView('trades')
-              }}
-            />
-          )}
+            {view === 'superlatives' && (
+              <SuperlativesView superlatives={superlatives} isDynasty={bundle.isDynasty} />
+            )}
+          </>
+        )}
+      </section>
 
-          {view === 'partners' && (
-            <PartnerMatrixView
-              pairs={partnerPairs}
-              gms={gmSummaries}
-              isDynasty={bundle.isDynasty}
-              focusRosterId={focusRosterId}
-              onInspectPair={(rA, rB) => {
-                setFocusRosterId(rA)
-                setPartnerRosterId(rB)
-                setView('trades')
-              }}
-            />
-          )}
-
-          {view === 'superlatives' && (
-            <SuperlativesView superlatives={superlatives} isDynasty={bundle.isDynasty} />
-          )}
-        </>
-      )}
-
-      <footer className="app-footer">
-        <span>Trade Ledger · Sleeper API + Live Dynasty Values</span>
-        <span>
-          Short-Term = Post-trade season points · Long-Term = Dynasty value + multi-year output
-        </span>
-      </footer>
+      <p className="bottom-note">
+        FANTASY TRADES <span>·</span> SLEEPER API + LIVE DYNASTY VALUES <span>·</span> SHORT-TERM =
+        LINEUP IMPACT PTS <span>·</span> LONG-TERM = PACKAGE-ADJUSTED DYNASTY VALUE + PAR
+      </p>
     </main>
   )
 }

@@ -1,4 +1,4 @@
-# Trade Ledger
+# Fantasy Trades
 
 Sleeper Fantasy Football Trade Analyzer for Dynasty & Redraft leagues.
 

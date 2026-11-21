@@ -8,19 +8,19 @@ interface TopBarProps {
 export function TopBar({ seasonLabel, valueSource }: TopBarProps) {
   return (
     <header className="topbar">
-      <a href="./" className="brand" title="Trade Ledger">
+      <a href="./" className="brand" title="Fantasy Trades">
         <span className="brand-mark">
           <ArrowLeftRight size={15} />
         </span>
         <span>
-          TRADE<span className="brand-light">LEDGER</span>
+          FANTASY<span className="brand-light">TRADES</span>
         </span>
       </a>
       <div className="topbar-right">
         <span className="season-label">{seasonLabel}</span>
         <span className="live-dot" />
         <span className="live-label">
-          {valueSource === 'fantasycalc' ? 'LIVE VALUES' : 'SLEEPER DATA'}
+          {valueSource === 'fantasycalc' ? 'LIVE DATA' : 'SLEEPER DATA'}
         </span>
       </div>
     </header>

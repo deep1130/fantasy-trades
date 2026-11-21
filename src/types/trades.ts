@@ -85,6 +85,7 @@ export interface SleeperDraft {
     teams?: number
   }
   slot_to_roster_id?: Record<string, number> | null
+  draft_order?: Record<string, number> | null
 }
 
 export interface SleeperDraftPick {
@@ -176,8 +177,10 @@ export interface TradedAsset {
   age?: number | null
   shortTermPts: number
   starterPts: number
+  parPts: number
   redraftValue: number
   multiSeasonPts: number
+  multiSeasonPar: number
   dynastyValue: number
   baseDynastyValue?: number
   scoringMultiplier?: number
@@ -198,6 +201,8 @@ export interface TradeSide {
   starterPts: number
   longTermScore: number
   currentDynastyValue: number
+  packageAdjustedValue: number
+  realizedParBonus: number
   multiSeasonPts: number
 }
 

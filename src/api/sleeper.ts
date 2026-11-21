@@ -15,7 +15,7 @@ import type {
 } from '../types/trades'
 
 const SLEEPER_API = 'https://api.sleeper.app/v1'
-const PLAYERS_STORAGE_KEY = 'trade-ledger-players-v1'
+const PLAYERS_STORAGE_KEY = 'fantasy-trades-players-v1'
 const PLAYERS_TTL_MS = 24 * 60 * 60 * 1000
 
 let memoryPlayersMap: Map<string, SleeperPlayerLite> | null = null

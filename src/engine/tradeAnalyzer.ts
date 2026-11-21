@@ -13,7 +13,6 @@ import type {
   SleeperTransaction,
   TradeSide,
   TradeWinnerSide,
-  TradedAsset,
 } from '../types/trades'
 
 interface RosterIdentity {
@@ -45,7 +44,7 @@ function computeTierByRoster(rosters: SleeperRoster[]): Map<number, 'Early' | 'M
   const scored = [...rosters].sort((a, b) => {
     const winsA = a.settings.wins ?? 0
     const winsB = b.settings.wins ?? 0
-    if (winsA !== winsB) return winsA - winsB // worst record first (Early pick)
+    if (winsA !== winsB) return winsA - winsB
     const fptsA = (a.settings.fpts ?? 0) + (a.settings.fpts_decimal ?? 0) / 100
     const fptsB = (b.settings.fpts ?? 0) + (b.settings.fpts_decimal ?? 0) / 100
     return fptsA - fptsB
@@ -68,8 +67,6 @@ function findSeasonRookieDraft(
   if (!snapshot || snapshot.drafts.length === 0) return null
   const completed = snapshot.drafts.filter((d) => d.picks.length > 0)
   if (completed.length === 0) return null
-
-  // Prefer rookie/shorter draft (<= 8 rounds) over startup draft if both exist
   const rookie = completed.find((d) => (d.draft.settings?.rounds ?? 99) <= 8)
   return rookie ?? completed[0]
 }
@@ -78,13 +75,16 @@ function resolveTradedPick(
   pickSeason: string,
   round: number,
   originalRosterId: number,
+  finalOwnerRosterId: number,
   seasonsByYear: Map<string, SeasonSnapshot>,
 ): { pick: SleeperDraftPick; draftSlot: number } | null {
   const snapshot = seasonsByYear.get(pickSeason)
   const draftEntry = findSeasonRookieDraft(snapshot)
-  if (!draftEntry) return null
+  if (!draftEntry || !snapshot) return null
 
   const { draft, picks } = draftEntry
+
+  // 1. Direct slot_to_roster_id map
   if (draft.slot_to_roster_id) {
     const matchedEntry = Object.entries(draft.slot_to_roster_id).find(
       ([, rId]) => Number(rId) === originalRosterId,
@@ -95,11 +95,47 @@ function resolveTradedPick(
       if (found && found.player_id) return { pick: found, draftSlot: slot }
     }
   }
+
+  // 2. Fallback via draft.draft_order (user_id -> slot)
+  if (draft.draft_order) {
+    const origRoster = snapshot.rosters.find((r) => r.roster_id === originalRosterId)
+    const slot = origRoster?.owner_id ? draft.draft_order[origRoster.owner_id] : undefined
+    if (typeof slot === 'number') {
+      const found = picks.find((p) => p.round === round && p.draft_slot === slot)
+      if (found && found.player_id) return { pick: found, draftSlot: slot }
+    }
+  }
+
+  // 3. Fallback: if finalOwnerRosterId made exactly one pick in this round
+  const ownerPicksInRound = picks.filter(
+    (p) => p.round === round && p.roster_id === finalOwnerRosterId && Boolean(p.player_id),
+  )
+  if (ownerPicksInRound.length === 1) {
+    return { pick: ownerPicksInRound[0], draftSlot: ownerPicksInRound[0].draft_slot }
+  }
+
   return null
+}
+
+function getReplacementPpg(position: string | undefined, bundle: LeagueHistoryBundle): number {
+  const sp = bundle.scoringProfile
+  switch (position) {
+    case 'QB':
+      return 13.8 + (sp.passTd - 4) * 1.1
+    case 'RB':
+      return 8.0 + sp.ppr * 1.4 + sp.rushAttBonus * 10
+    case 'WR':
+      return 8.4 + sp.ppr * 2.1
+    case 'TE':
+      return 5.6 + (sp.ppr + sp.tepBonus) * 2.0
+    default:
+      return 7.5
+  }
 }
 
 function computePlayerPointsFromTrade(
   playerId: string,
+  position: string | undefined,
   receivingRosterId: number,
   tradeSeason: string,
   tradeWeek: number,
@@ -108,17 +144,22 @@ function computePlayerPointsFromTrade(
 ): {
   sameSeasonPts: number
   sameSeasonStarterPts: number
+  sameSeasonPar: number
   multiSeasonPts: number
+  multiSeasonPar: number
   weeksPlayedSameSeason: number
   activeGamesMultiSeason: number
   leaguePpg: number
 } {
   let sameSeasonPts = 0
   let sameSeasonStarterPts = 0
+  let sameSeasonPar = 0
   let multiSeasonPts = 0
+  let multiSeasonPar = 0
   let weeksPlayedSameSeason = 0
   let activeGamesMultiSeason = 0
 
+  const repPpg = getReplacementPpg(position, bundle)
   const tradeSeasonNum = Number(tradeSeason)
   const seasonsAsc = [...bundle.seasons].sort(
     (a, b) => Number(a.league.season) - Number(b.league.season),
@@ -136,39 +177,45 @@ function computePlayerPointsFromTrade(
       if (!matchups || matchups.length === 0) continue
 
       const teamMatchup = matchups.find((m) => m.roster_id === receivingRosterId)
-      const ptsFromTeam = teamMatchup?.players_points?.[playerId]
-      const onReceivingRoster = teamMatchup?.players?.includes(playerId)
+      const onReceivingRoster = Boolean(teamMatchup?.players?.includes(playerId))
+      const inReceivingStarters = Boolean(teamMatchup?.starters?.includes(playerId))
 
-      // In trade week itself, skip if player wasn't on receiving roster yet (e.g. Sunday night trade)
       if (isSameSeason && w === startWeek && txCreatedMs > 0) {
         if (teamMatchup && teamMatchup.players && !onReceivingRoster) {
           continue
         }
       }
 
-      let pts = 0
-      if (typeof ptsFromTeam === 'number') {
-        pts = ptsFromTeam
-      } else {
-        // Fallback: check any matchup in that week for raw player points if player moved later
+      // Look up points scored in this week under league scoring
+      let rawWeekPts = teamMatchup?.players_points?.[playerId]
+      if (typeof rawWeekPts !== 'number') {
         for (const m of matchups) {
           const val = m.players_points?.[playerId]
           if (typeof val === 'number') {
-            pts = val
+            rawWeekPts = val
             break
           }
         }
       }
 
-      if (pts !== 0 || onReceivingRoster) {
-        multiSeasonPts += pts
-        if (pts > 0) activeGamesMultiSeason += 1
-        if (isSameSeason) {
-          sameSeasonPts += pts
-          weeksPlayedSameSeason += 1
-          if (teamMatchup?.starters?.includes(playerId)) {
-            sameSeasonStarterPts += pts
-          }
+      const pts = typeof rawWeekPts === 'number' ? rawWeekPts : 0
+      if (pts <= 0 && !onReceivingRoster) continue
+
+      // Full credit while on receiving roster; 40% residual credit if later flipped/dropped
+      const ownershipWeight = onReceivingRoster ? 1.0 : 0.4
+      const creditedPts = pts * ownershipWeight
+      const weekPar = Math.max(0, pts - repPpg) * (inReceivingStarters ? 1.0 : onReceivingRoster ? 0.65 : 0.35)
+
+      multiSeasonPts += creditedPts
+      multiSeasonPar += weekPar
+      if (pts > 0) activeGamesMultiSeason += 1
+
+      if (isSameSeason) {
+        sameSeasonPts += creditedPts
+        sameSeasonPar += weekPar
+        if (onReceivingRoster) weeksPlayedSameSeason += 1
+        if (inReceivingStarters) {
+          sameSeasonStarterPts += pts
         }
       }
     }
@@ -180,9 +227,11 @@ function computePlayerPointsFromTrade(
       : 0
 
   return {
-    sameSeasonPts,
-    sameSeasonStarterPts,
-    multiSeasonPts,
+    sameSeasonPts: Math.round(sameSeasonPts * 10) / 10,
+    sameSeasonStarterPts: Math.round(sameSeasonStarterPts * 10) / 10,
+    sameSeasonPar: Math.round(sameSeasonPar * 10) / 10,
+    multiSeasonPts: Math.round(multiSeasonPts * 10) / 10,
+    multiSeasonPar: Math.round(multiSeasonPar * 10) / 10,
     weeksPlayedSameSeason,
     activeGamesMultiSeason,
     leaguePpg,
@@ -198,33 +247,24 @@ function getLeagueScoringMultiplier(
   const posKey = (position || 'WR') as 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF'
   const basePosMul = bundle.scoringProfile.posMultipliers[posKey] ?? 1.0
 
-  // If player has played 4+ active games under this league's scoring, factor in high-end scoring output
-  if (activeGames < 4 || leaguePpg <= 0) return basePosMul
+  if (activeGames < 3 || leaguePpg <= 0) return basePosMul
 
-  const expectedStarterPpg: Record<string, number> = {
-    QB: bundle.scoringProfile.passTd >= 6 ? 19.5 : 17.5,
-    RB: 12.5 + bundle.ppr * 2.0 + bundle.scoringProfile.rushAttBonus * 14,
-    WR: 11.5 + bundle.ppr * 3.0,
-    TE: 8.5 + (bundle.ppr + bundle.tepBonus) * 2.8,
-  }
-  const ref = expectedStarterPpg[posKey]
-  if (!ref) return basePosMul
-
-  // Up to +/- 8% additional adjustment based on actual league-scored PPG vs positional norm
-  const ppgDeltaRatio = Math.max(-0.08, Math.min(0.08, ((leaguePpg - ref) / ref) * 0.14))
-  return Math.round((basePosMul * (1 + ppgDeltaRatio)) * 1000) / 1000
+  const rep = getReplacementPpg(posKey, bundle)
+  const starterTarget = rep * 1.45
+  const ppgDeltaRatio = Math.max(-0.1, Math.min(0.12, ((leaguePpg - starterTarget) / starterTarget) * 0.18))
+  return Math.round(basePosMul * (1 + ppgDeltaRatio) * 1000) / 1000
 }
 
 function estimateFallbackPlayerValue(
   player: SleeperPlayerLite | undefined,
-  multiSeasonPts: number,
+  multiSeasonPar: number,
   isDynasty: boolean,
 ): number {
-  const baseFromPts = Math.min(6500, Math.round(multiSeasonPts * 6))
-  if (!isDynasty) return Math.max(400, baseFromPts)
+  const baseFromPar = Math.min(6500, Math.round(multiSeasonPar * 22 + 600))
+  if (!isDynasty) return Math.max(400, baseFromPar)
   const age = player?.age ?? 26
   const ageFactor = age <= 24 ? 1.25 : age >= 29 ? 0.65 : 1.0
-  return Math.max(350, Math.round(baseFromPts * ageFactor))
+  return Math.max(350, Math.round(baseFromPar * ageFactor))
 }
 
 function ordinalRound(round: number): string {
@@ -270,19 +310,23 @@ function buildTradeSides(
       starterPts: 0,
       longTermScore: 0,
       currentDynastyValue: 0,
+      packageAdjustedValue: 0,
+      realizedParBonus: 0,
       multiSeasonPts: 0,
     })
   }
 
-  // Players added to each roster
   for (const [playerId, receivingRosterId] of Object.entries(tx.adds ?? {})) {
     const side = sideMap.get(receivingRosterId)
     if (!side) continue
 
     const pLite = playersMap.get(playerId)
     const valEntry = valueMap.byPlayerId.get(playerId)
+    const pos = pLite?.position ?? valEntry?.position
+
     const pts = computePlayerPointsFromTrade(
       playerId,
+      pos,
       receivingRosterId,
       snap.league.season,
       tx.leg || 1,
@@ -290,7 +334,6 @@ function buildTradeSides(
       bundle,
     )
 
-    const pos = pLite?.position ?? valEntry?.position
     const scoringMul = getLeagueScoringMultiplier(
       pos,
       pts.leaguePpg,
@@ -299,15 +342,15 @@ function buildTradeSides(
     )
     const rawDynastyVal =
       valEntry?.dynastyValue ??
-      estimateFallbackPlayerValue(pLite, pts.multiSeasonPts, bundle.isDynasty)
+      estimateFallbackPlayerValue(pLite, pts.multiSeasonPar, bundle.isDynasty)
     const rawRedraftVal =
       valEntry?.redraftValue ??
-      estimateFallbackPlayerValue(pLite, pts.sameSeasonPts, false)
+      estimateFallbackPlayerValue(pLite, pts.sameSeasonPar, false)
 
     const dynastyVal = Math.round(rawDynastyVal * scoringMul)
     const redraftVal = Math.round(rawRedraftVal * scoringMul)
 
-    const asset: TradedAsset = {
+    side.received.push({
       kind: 'player',
       id: playerId,
       label: pLite?.name ?? valEntry?.name ?? `Player ${playerId}`,
@@ -318,18 +361,18 @@ function buildTradeSides(
       age: pLite?.age ?? valEntry?.age ?? null,
       shortTermPts: pts.sameSeasonPts,
       starterPts: pts.sameSeasonStarterPts,
+      parPts: pts.sameSeasonPar,
       redraftValue: redraftVal,
       multiSeasonPts: pts.multiSeasonPts,
+      multiSeasonPar: pts.multiSeasonPar,
       dynastyValue: dynastyVal,
       baseDynastyValue: rawDynastyVal,
       scoringMultiplier: scoringMul,
       leaguePpg: pts.leaguePpg,
       gamesPlayed: pts.activeGamesMultiSeason,
-    }
-    side.received.push(asset)
+    })
   }
 
-  // Draft picks received
   for (const pick of tx.draft_picks ?? []) {
     const side = sideMap.get(pick.owner_id)
     if (!side) continue
@@ -338,6 +381,7 @@ function buildTradeSides(
       pick.season,
       pick.round,
       pick.roster_id,
+      pick.owner_id,
       seasonsByYear,
     )
     const origOwnerName =
@@ -348,14 +392,16 @@ function buildTradeSides(
       const draftedPlayerId = resolved.pick.player_id
       const pLite = playersMap.get(draftedPlayerId)
       const valEntry = valueMap.byPlayerId.get(draftedPlayerId)
+      const pos = pLite?.position ?? resolved.pick.metadata?.position ?? valEntry?.position
       const draftedName =
         pLite?.name ??
         valEntry?.name ??
-        `${resolved.pick.metadata?.first_name ?? ''} ${resolved.pick.metadata?.last_name ?? ''}`.trim() ??
-        `Player ${draftedPlayerId}`
+        (`${resolved.pick.metadata?.first_name ?? ''} ${resolved.pick.metadata?.last_name ?? ''}`.trim() ||
+          `Player ${draftedPlayerId}`)
 
       const pts = computePlayerPointsFromTrade(
         draftedPlayerId,
+        pos,
         pick.owner_id,
         pick.season,
         1,
@@ -363,7 +409,6 @@ function buildTradeSides(
         bundle,
       )
 
-      const pos = pLite?.position ?? resolved.pick.metadata?.position ?? valEntry?.position
       const scoringMul = getLeagueScoringMultiplier(
         pos,
         pts.leaguePpg,
@@ -372,14 +417,15 @@ function buildTradeSides(
       )
       const rawDynastyVal =
         valEntry?.dynastyValue ??
-        estimateFallbackPlayerValue(pLite, pts.multiSeasonPts, bundle.isDynasty)
+        estimateFallbackPlayerValue(pLite, pts.multiSeasonPar, bundle.isDynasty)
       const dynastyVal = Math.round(rawDynastyVal * scoringMul)
 
-      // If pick resolved in the SAME season as an offseason trade, include its same-season pts
       const sameSeasonPickPts =
         pick.season === snap.league.season ? pts.sameSeasonPts : 0
       const sameSeasonStarter =
         pick.season === snap.league.season ? pts.sameSeasonStarterPts : 0
+      const sameSeasonPar =
+        pick.season === snap.league.season ? pts.sameSeasonPar : 0
 
       const slotStr = `${pick.round}.${String(resolved.draftSlot).padStart(2, '0')}`
       side.received.push({
@@ -391,8 +437,10 @@ function buildTradeSides(
         age: pLite?.age ?? valEntry?.age ?? null,
         shortTermPts: sameSeasonPickPts,
         starterPts: sameSeasonStarter,
+        parPts: sameSeasonPar,
         redraftValue: Math.round((valEntry?.redraftValue ?? 0) * scoringMul),
         multiSeasonPts: pts.multiSeasonPts,
+        multiSeasonPar: pts.multiSeasonPar,
         dynastyValue: dynastyVal,
         baseDynastyValue: rawDynastyVal,
         scoringMultiplier: scoringMul,
@@ -416,15 +464,17 @@ function buildTradeSides(
         sublabel: `Orig: ${origOwnerName}`,
         shortTermPts: 0,
         starterPts: 0,
+        parPts: 0,
         redraftValue: 0,
         multiSeasonPts: 0,
+        multiSeasonPar: 0,
         dynastyValue: pickVal,
+        baseDynastyValue: pickVal,
         pickTier: tier,
       })
     }
   }
 
-  // FAAB received
   for (const faab of tx.waiver_budget ?? []) {
     const side = sideMap.get(faab.receiver)
     if (!side || faab.amount <= 0) continue
@@ -435,39 +485,110 @@ function buildTradeSides(
       sublabel: 'Waiver Budget',
       shortTermPts: 0,
       starterPts: 0,
-      redraftValue: faab.amount * 4,
+      parPts: 0,
+      redraftValue: faab.amount * 3,
       multiSeasonPts: 0,
-      dynastyValue: faab.amount * 3,
+      multiSeasonPar: 0,
+      dynastyValue: faab.amount * 2,
+      baseDynastyValue: faab.amount * 2,
     })
   }
 
   const sides = Array.from(sideMap.values()).filter((s) => s.received.length > 0)
   const isCurrentSeason = snap.league.season === currentSeasonStr
-  const weeksElapsed = Math.max(0, snap.lastScoredWeek - (tx.leg || 1) + 1)
+  const remainingWeeks = isCurrentSeason ? Math.max(0, 17 - snap.lastScoredWeek) : 0
+
+  // Determine minimum non-FAAB asset count & active short-term player count across sides
+  const minPlayerCount = Math.max(
+    1,
+    Math.min(
+      ...sides.map(
+        (s) => s.received.filter((a) => a.kind === 'player' || a.resolvedFromPick).length || 1,
+      ),
+    ),
+  )
+  const minAssetCount = Math.max(
+    1,
+    Math.min(...sides.map((s) => s.received.filter((a) => a.kind !== 'faab').length || 1)),
+  )
+
+  const shortSlotDecay = [1.0, 0.55, 0.3, 0.15]
+  const longExtraSlotDecay = [0.76, 0.58, 0.42, 0.3]
 
   for (const side of sides) {
-    let stPts = 0
-    let starterPts = 0
-    let stRedraftBlend = 0
-    let ltDynasty = 0
-    let ltMultiPts = 0
+    // Sort assets by dynasty value descending for clean display & package weighting
+    side.received.sort((a, b) => b.dynastyValue - a.dynastyValue || b.shortTermPts - a.shortTermPts)
 
-    for (const a of side.received) {
-      stPts += a.shortTermPts
-      starterPts += a.starterPts
-      stRedraftBlend += a.redraftValue
-      ltDynasty += a.dynastyValue
-      ltMultiPts += a.multiSeasonPts
+    const rawStPts = side.received.reduce((s, a) => s + a.shortTermPts, 0)
+    const rawStarterPts = side.received.reduce((s, a) => s + a.starterPts, 0)
+    const rawMultiPts = side.received.reduce((s, a) => s + a.multiSeasonPts, 0)
+    const rawDynVal = side.received.reduce((s, a) => s + a.dynastyValue, 0)
+
+    // Short-Term Lineup-Slot Adjusted Impact Score (in fantasy points)
+    // Weighs actual starter points + points above replacement + remaining current-season projection,
+    // and discounts extra bench pieces in uneven 2-for-1 / 3-for-1 trades
+    const stValues = side.received
+      .map((a) => {
+        const onFieldImpact = a.starterPts * 0.6 + a.shortTermPts * 0.4 + a.parPts * 0.45
+        const rosPts =
+          remainingWeeks > 0 && a.redraftValue > 0
+            ? (a.redraftValue / 1000) * 1.45 * remainingWeeks
+            : 0
+        return onFieldImpact + rosPts
+      })
+      .sort((a, b) => b - a)
+
+    let stImpactScore = 0
+    stValues.forEach((val, idx) => {
+      if (idx < minPlayerCount) {
+        stImpactScore += val
+      } else {
+        const extraIdx = Math.min(shortSlotDecay.length - 1, idx - minPlayerCount + 1)
+        stImpactScore += val * shortSlotDecay[extraIdx]
+      }
+    })
+
+    // Long-Term Package-Adjusted Dynasty Score
+    // Discounts extra depth pieces in 3-for-1 / 4-for-1 packages + adds realized multi-season PAR
+    const ltAssets = [...side.received].sort(
+      (a, b) =>
+        b.dynastyValue + b.multiSeasonPar * 14 - (a.dynastyValue + a.multiSeasonPar * 14),
+    )
+
+    let pkgDynastyValue = 0
+    let parBonus = 0
+    ltAssets.forEach((asset, idx) => {
+      const slotWeight =
+        idx < minAssetCount
+          ? 1.0
+          : longExtraSlotDecay[Math.min(longExtraSlotDecay.length - 1, idx - minAssetCount)]
+      pkgDynastyValue += asset.dynastyValue * slotWeight
+      parBonus += Math.min(3200, asset.multiSeasonPar * 14) * slotWeight
+    })
+
+    side.shortTermPts = Math.round(rawStPts * 10) / 10
+    side.starterPts = Math.round(rawStarterPts * 10) / 10
+    side.shortTermScore = Math.round(stImpactScore * 10) / 10
+    side.currentDynastyValue = Math.round(rawDynVal)
+    side.packageAdjustedValue = Math.round(pkgDynastyValue)
+    side.realizedParBonus = Math.round(parBonus)
+    side.multiSeasonPts = Math.round(rawMultiPts * 10) / 10
+    side.longTermScore = Math.round(pkgDynastyValue + parBonus)
+  }
+
+  // Stud Cornerstone Bonus: if the single highest-value asset in the trade is an elite stud (>=5000)
+  // and beats the other side's top asset by >=1500, grant a 12% stud consolidation bonus on the gap
+  if (sides.length >= 2) {
+    const topByAsset = [...sides].sort(
+      (a, b) => (b.received[0]?.dynastyValue ?? 0) - (a.received[0]?.dynastyValue ?? 0),
+    )
+    const bestAssetVal = topByAsset[0].received[0]?.dynastyValue ?? 0
+    const secondBestVal = topByAsset[1].received[0]?.dynastyValue ?? 0
+    if (bestAssetVal >= 5000 && bestAssetVal - secondBestVal >= 1500) {
+      const studBonus = Math.round((bestAssetVal - secondBestVal) * 0.14)
+      topByAsset[0].packageAdjustedValue += studBonus
+      topByAsset[0].longTermScore += studBonus
     }
-
-    side.shortTermPts = Math.round(stPts * 10) / 10
-    side.starterPts = Math.round(starterPts * 10) / 10
-    // Blend ROS redraft value when trade is fresh (<4 scored weeks since trade)
-    const rosWeight = isCurrentSeason && weeksElapsed < 4 ? 0.015 : 0
-    side.shortTermScore = Math.round((stPts + stRedraftBlend * rosWeight) * 10) / 10
-    side.currentDynastyValue = Math.round(ltDynasty)
-    side.multiSeasonPts = Math.round(ltMultiPts * 10) / 10
-    side.longTermScore = Math.round(ltDynasty + ltMultiPts * 2.5)
   }
 
   return sides
@@ -501,7 +622,7 @@ function classifyWinners(
   const byLong = [...sides].sort((a, b) => b.longTermScore - a.longTermScore)
 
   const shortGap = byShort[0].shortTermScore - byShort[1].shortTermScore
-  const shortDeadzone = Math.max(15, byShort[0].shortTermScore * 0.08)
+  const shortDeadzone = Math.max(12, byShort[0].shortTermScore * 0.08)
 
   let shortTermWinner: TradeWinnerSide = 'even'
   if (isCurrentSeason && weeksElapsed === 0 && byShort[0].shortTermScore === 0) {
@@ -511,7 +632,7 @@ function classifyWinners(
   }
 
   const longGap = byLong[0].longTermScore - byLong[1].longTermScore
-  const longDeadzone = Math.max(350, byLong[0].longTermScore * 0.08)
+  const longDeadzone = Math.max(300, byLong[0].longTermScore * 0.075)
 
   let longTermWinner: TradeWinnerSide = 'even'
   if (longGap > longDeadzone) {
@@ -519,7 +640,6 @@ function classifyWinners(
   }
 
   if (!isDynasty) {
-    // In redraft, longTermWinner mirrors ROS/final score
     if (shortTermWinner === 'pending') {
       return {
         shortTermWinner,
@@ -530,7 +650,7 @@ function classifyWinners(
         longTermMargin: Math.round(longGap),
       }
     }
-    const isBig = shortGap > Math.max(60, byShort[0].shortTermScore * 0.25)
+    const isBig = shortGap > Math.max(50, byShort[0].shortTermScore * 0.24)
     return {
       shortTermWinner,
       longTermWinner,
@@ -546,7 +666,6 @@ function classifyWinners(
     }
   }
 
-  // Dynasty 2x2 classification
   let verdict: DynastyVerdictType = 'even'
   let verdictLabel = 'Fair & Even'
 
@@ -564,15 +683,15 @@ function classifyWinners(
     typeof shortTermWinner === 'number' &&
     shortTermWinner === longTermWinner
   ) {
-    const bigShort = shortGap > Math.max(50, byShort[0].shortTermScore * 0.22)
-    const bigLong = longGap > Math.max(1200, byLong[0].longTermScore * 0.2)
+    const bigShort = shortGap > Math.max(45, byShort[0].shortTermScore * 0.22)
+    const bigLong = longGap > Math.max(1100, byLong[0].longTermScore * 0.2)
     verdict = bigShort || bigLong ? 'fleece' : 'slight-edge'
     verdictLabel =
       verdict === 'fleece'
-        ? `Total Fleece · ${byLong[0].teamName}`
-        : `Swept Edge · ${byLong[0].teamName}`
+        ? `Fleece · ${byLong[0].teamName}`
+        : `Edge · ${byLong[0].teamName}`
   } else if (typeof longTermWinner === 'number') {
-    const bigLong = longGap > Math.max(1500, byLong[0].longTermScore * 0.25)
+    const bigLong = longGap > Math.max(1400, byLong[0].longTermScore * 0.24)
     verdict = bigLong ? 'fleece' : 'slight-edge'
     verdictLabel = bigLong
       ? `Long-Term Fleece · ${byLong[0].teamName}`
